@@ -73,8 +73,8 @@
 
 (define-datatype proc-val proc-val?
   [prim-proc
-   (name symbol?)])
-	 
+   (name symbol?)]
+  [closure (params body env)])
 	 
 	 
 	
@@ -222,22 +222,42 @@
     (cases expression exp
       [lit-exp (datum) datum]
       [var-exp (id)
-				(apply-env init-env id; look up its value.
+				(apply-env init-env id ; look up its value.
       	   (lambda (x) x) ; procedure to call if id is in the environment 
-           (lambda () (eopl:error 'apply-env ; procedure to call if id not in env
+           (lambda () (apply-env global-env id
+				(lambda (x) x)
+				(lambda () (eopl:error 'apply-env ; procedure to call if id not in env
 		          "variable not found in environment: ~s"
-			   id)))] 
+			   id)))))]
       [app-exp (rator rands)
-        (let ([proc-value (eval-exp rator)]
-              [args (eval-rands rands)])
+        (let ([proc-value (eval-exp rator env)] ;init-env?
+              [args (eval-rands rands env)]) ;init-env?
           (apply-proc proc-value args))]
+	  [let-exp (vars exp bodies)
+		(let ([new-env
+				(extend-env vars
+						(map (lambda (x)
+								(eval-exp x env))
+								exp)
+						env)])
+			(let loop ([bodies bodies])
+				(if (null? (cdr bodies))
+					(eval-exp (car bodies) new-env)
+					(begin (eval-exp (car bodies) new-env)
+							(loop (cdr bodies))))))]
+	  [if-exp (test-exp then-exp else-exp)
+		(if (eval-exp test-exp env) ;init-env?
+			(eval-exp then-exp env) ;init-env?
+			(eval-exp else-exp env))] ;init-env?
+	  [lambda-exp (params body)
+		(closure params body env)] ;init-env?
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
 ; evaluate the list of operands, putting results into a list
 
 (define eval-rands
-  (lambda (rands)
-    (map eval-exp rands)))
+  (lambda (rands env)
+    (map eval-exp rands env)))
 
 ;  Apply a procedure to its arguments.
 ;  At this point, we only have primitive procedures.  
