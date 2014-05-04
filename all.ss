@@ -1,7 +1,7 @@
 ;:  Single-file version of the interpreter.
 ;; Easier to submit to server, probably harder to use in the development process
 
-(load "chez-init.ss") 
+;(load "chez-init.ss") 
 
 
 
@@ -35,7 +35,10 @@
 
 (define-datatype proc-val proc-val?
   [prim-proc
-   (name symbol?)])
+   (name symbol?)]
+  [closure (params (list-of symbol?))
+			(body expression?)
+			(env environment?)])
 	 
 	 
 	 
@@ -67,16 +70,6 @@
    (rands (list-of expression?))]  
   )
 
-	
-; datatype for procedures.  At first there is only one
-; kind of procedure, but more kinds will be added later.
-
-(define-datatype proc-val proc-val?
-  [prim-proc
-   (name symbol?)]
-  [closure (params body env)])
-	 
-	 
 	
 ;; environment type definitions
 
@@ -218,7 +211,7 @@
 ; eval-exp is the main component of the interpreter
 
 (define eval-exp
-  (lambda (exp)
+  (lambda (exp env)
     (cases expression exp
       [lit-exp (datum) datum]
       [var-exp (id)
@@ -246,11 +239,11 @@
 					(begin (eval-exp (car bodies) new-env)
 							(loop (cdr bodies))))))]
 	  [if-exp (test-exp then-exp else-exp)
-		(if (eval-exp test-exp env) ;init-env?
-			(eval-exp then-exp env) ;init-env?
-			(eval-exp else-exp env))] ;init-env?
+		(if (eval-exp test-exp env)
+			(eval-exp then-exp env)
+			(eval-exp else-exp env))]
 	  [lambda-exp (params body)
-		(closure params body env)] ;init-env?
+		(closure params body env)]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
 
 ; evaluate the list of operands, putting results into a list
@@ -267,7 +260,9 @@
   (lambda (proc-value args)
     (cases proc-val proc-value
       [prim-proc (op) (apply-prim-proc op args)]
-			; You will add other cases
+	  [closure (params body env)
+		(let ([extended-env (extended-env params args env)])
+			(eval-exp body extended-env))]
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
                     proc-value)])))
