@@ -102,6 +102,13 @@
           (null? datum)) (lit-exp datum)]
      [(pair? datum)
       (cond
+	    [(and (or (eqv? (car datum) 'let)
+	        (eqv? (car datum) 'let*)
+			(eqv? (car datum) 'letrec)) (validate-let datum))
+		   (let-exp ;(car datum)
+			 (map car (cadr datum))
+			 (map parse-exp (cadr datum))
+			 (map parse-exp (cddr datum)))]
 		[(eqv? (car datum) 'quote) (if (= (length datum) 2)
                                       (quote-exp (cadr datum))
                                       (eopl:error 'parse-exp "bad quote: ~s" datum))]
@@ -118,14 +125,39 @@
 		      (map parse-exp (cdr datum)))])]
      [else (eopl:error 'parse-exp "bad expression: ~s" datum)])))
 
+
 (define validate-if
 	(lambda (exp)
 		(if (and (> (length exp) 2) (< (length exp) 5))
 			#t
 			(eopl:error 'parse-exp "if-expression ~s does not have (only) test, then, and else" exp))))
 
+(define validate-let
+	(lambda (exp)
+		(if (> (length exp) 2) ; cant get to proper list check because of this?!?!?!
+			(if (and (list? (cadr exp)) (first-symbols? (cadr exp)) (lists-length-2? (cadr exp)) (proper-list-2-lists? (cadr exp)))
+				#t
+				(eopl:error 'parse-exp "declaration in ~s-exp must be a list of length 2 ~s" exp))
+			(eopl:error 'parse-exp "declaration in ~s-exp must be a list of length 2 ~s" exp))))
 
-
+(define first-symbols?
+	(lambda (x)
+		(cond [(null? x) #t]
+			[else (and (symbol? (caar x)) (first-symbols? (cdr x)))])))
+			
+(define lists-length-2?
+	(lambda (ls)
+		(cond [(null? ls) #t]
+			[else (and (= (length (car ls)) 2) (lists-length-2? (cdr ls)))])))
+			
+(define proper-2-list?
+	(lambda (ls)
+		(list? (cdr ls))))
+		
+(define proper-list-2-lists?
+	(lambda (ls)
+		(cond [(null? ls) #t]
+			[else (and (proper-2-list? (car ls)) (proper-list-2-lists? (cdr ls)))])))
 
 
 
@@ -288,7 +320,7 @@
                    "Attempt to apply bad procedure: ~s" 
                     proc-value)])))
 
-(define *prim-proc-names* '(+ - * add1 sub1 cons =))
+(define *prim-proc-names* '(+ - * / add1 sub1 not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? number? length pair? cons >= = zero? null? eq? equal? procedure?))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
@@ -311,14 +343,29 @@
 	  [(/) (apply / args)]
       [(add1) (+ (1st args) 1)]
       [(sub1) (- (1st args) 1)]
+	  [(not) (not (1st args))]
       [(cons) (cons (1st args) (2nd args))]
-	  [(car) (car (args))]
+	  [(car) (car (1st args))]
+	  [(cdr) (cdr (1st args))]
+	  [(list) args]
+	  [(list?) (list? (1st args))]
+	  [(list->vector) (list->vector (1st args))]
+	  [(vector->list) (vector->list (1st args))]
+	  [(vector?) (vector? (1st args))]
+	  [(number?) (number? (1st args))]
+	  [(symbol?) (symbol? (1st args))]
+	  [(caar) (caar (1st args))]
+	  [(cadr) (cadr (1st args))]
+	  [(cadar) (cadar (1st args))]
+	  [(length) (length (1st args))]
+	  [(pair?) (pair? (1st args))]
 	  [(>=) (or (apply > args) (apply = args))]
       [(=) (= (1st args) (2nd args))]
 	  [(zero?) (= (1st args) 0)]
-	  [(null?) (= (1st args) '())]
+	  [(null?) (null? (1st args))]
 	  [(eq?) (eq? (1st args) (2nd args))]
 	  [(equal?) (equal? (1st args) (2nd args))]
+	  [(procedure?) (proc-val? (1st args))]
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-proc)])))
