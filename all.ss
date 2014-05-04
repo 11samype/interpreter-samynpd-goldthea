@@ -177,46 +177,50 @@
 ; eval-exp is the main component of the interpreter
 
 (define eval-exp
+  (let ([identity-proc (lambda (x) x)])
   (lambda (exp env)
-    (cases expression exp
-      [lit-exp (datum) datum]
-      [var-exp (id)
-				(apply-env init-env id ; look up its value.
-      	   (lambda (x) x) ; procedure to call if id is in the environment 
-           (lambda () (apply-env global-env id
-				(lambda (x) x)
-				(lambda () (eopl:error 'apply-env ; procedure to call if id not in env
-		          "variable not found in environment: ~s"
-			   id)))))]
+	(cases expression exp
+		[lit-exp (datum) datum]
+		[var-exp (id) ; look up its value.
+			(apply-env env id
+				identity-proc ; procedure to call if var is in env
+					(lambda () ; procedure to call if var is not in env
+						(apply-env global-env ; was init-env
+							id
+							identity-proc
+							(lambda () 
+								(error 'apply-env
+										"variable ~s is not bound" 
+										id)))))]
       [app-exp (rator rands)
-        (let ([proc-value (eval-exp rator env)] ;init-env?
-              [args (eval-rands rands env)]) ;init-env?
+        (let ([proc-value (eval-exp rator env)]
+              [args (eval-rands rands env)])
           (apply-proc proc-value args))]
-	  [let-exp (vars exp bodies)
-		(let ([new-env
-				(extend-env vars
-						(map (lambda (x)
-								(eval-exp x env))
-								exp)
-						env)])
-			(let loop ([bodies bodies])
-				(if (null? (cdr bodies))
-					(eval-exp (car bodies) new-env)
-					(begin (eval-exp (car bodies) new-env)
-							(loop (cdr bodies))))))]
+	  [let-exp (syms exprs bodies)
+		(let ([extended-env
+			(extend-env syms
+				(map (lambda (e)(eval-exp e env)) 
+					exprs) 
+				env)])
+		(let loop ([bodies bodies]) 
+			(if (null? (cdr bodies))
+				(eval-exp (car bodies) extended-env)
+				(begin (eval-exp (car bodies) extended-env) 
+					(loop (cdr bodies))))))]
 	  [if-exp (test-exp then-exp else-exp)
 		(if (eval-exp test-exp env)
 			(eval-exp then-exp env)
 			(eval-exp else-exp env))]
 	  [lambda-exp (params body)
 		(closure params body env)]
-      [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))
+      [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
 
 ; evaluate the list of operands, putting results into a list
 
 (define eval-rands
   (lambda (rands env)
-    (map eval-exp rands env)))
+    (map (lambda (e)
+		(eval-exp e env)) rands)))
 
 ;  Apply a procedure to its arguments.
 ;  At this point, we only have primitive procedures.  
