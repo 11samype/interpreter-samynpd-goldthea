@@ -142,13 +142,13 @@
 (define apply-env
   (lambda (env sym succeed fail) ; succeed and fail are procedures applied if the var is or isn't found, respectively.
     (cases environment env
-      (empty-env-record ()
-        (fail))
-      (extended-env-record (syms vals env)
-	(let ((pos (list-find-position sym syms)))
+      [empty-env-record ()
+        (fail)]
+      [extended-env-record (syms vals env)
+		(let ([pos (list-find-position sym syms)])
       	  (if (number? pos)
 	      (succeed (list-ref vals pos))
-	      (apply-env env sym succeed fail)))))))
+	      (apply-env env sym succeed fail)))])))
 
 
 
@@ -188,7 +188,7 @@
 (define top-level-eval
   (lambda (form)
     ; later we may add things that are not expressions.
-    (eval-exp form init-env)))
+    (eval-exp form global-env)))
 
 ; eval-exp is the main component of the interpreter
 
@@ -261,7 +261,7 @@
 
 (define *prim-proc-names* '(+ - * add1 sub1 cons =))
 
-(define init-env         ; for now, our initial global environment only contains 
+(define global-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
      *prim-proc-names*   ;  a value (not an expression) with an identifier.
      (map prim-proc      
@@ -274,12 +274,15 @@
 (define apply-prim-proc
   (lambda (prim-proc args)
     (case prim-proc
-      [(+) (+ (1st args) (2nd args))]
-      [(-) (- (1st args) (2nd args))]
-      [(*) (* (1st args) (2nd args))]
+      [(+) (apply + args)]
+      [(-) (apply - args)]
+      [(*) (apply * args)]
+	  [(/) (apply / args)]
       [(add1) (+ (1st args) 1)]
       [(sub1) (- (1st args) 1)]
       [(cons) (cons (1st args) (2nd args))]
+	  [(car) (car (args))]
+	  [(>=) (or (apply > args) (apply = args))]
       [(=) (= (1st args) (2nd args))]
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
