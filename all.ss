@@ -61,9 +61,12 @@
 	(then-exp expression?)
 	(else-exp expression?)]
   [let-exp
-	(syms symbol?)
-	(exprs expression?)
-	(body expression?)
+	(syms (list-of symbol?))
+	(exprs (list-of expression?))
+	(bodies (list-of expression?))]
+  [lambda-exp
+	(params (lambda (x) (or (symbol? x) (pair? x) (null? x))))
+	(body expression?)]
   )
 
 
