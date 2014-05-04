@@ -51,6 +51,19 @@
   [app-exp        ; applications
    (rator expression?)
    (rands (list-of expression?))]  
+  [letrec-exp
+	(proc-names (list-of symbol?))
+	(idss (list-f (list-of symbol?)))
+	(bodies (list-of expression?))
+	(letrec-body expression?)]
+  [if-exp 
+	(test-exp expression?)
+	(then-exp expression?)
+	(else-exp expression?)]
+  [let-exp
+	(syms symbol?)
+	(exprs expression?)
+	(body expression?)
   )
 
 
@@ -172,7 +185,7 @@
 (define top-level-eval
   (lambda (form)
     ; later we may add things that are not expressions.
-    (eval-exp form)))
+    (eval-exp form init-env)))
 
 ; eval-exp is the main component of the interpreter
 
@@ -213,6 +226,12 @@
 			(eval-exp else-exp env))]
 	  [lambda-exp (params body)
 		(closure params body env)]
+	  [letrec-exp 
+		(proc-names idss bodies letrec-body)
+		(eval-exp letrec-body
+			(extend-env-recursively 
+				proc-names idss bodies env))]
+	  
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
 
 ; evaluate the list of operands, putting results into a list
@@ -261,11 +280,11 @@
       [(=) (= (1st args) (2nd args))]
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
-            prim-op)])))
+            prim-proc)])))
 
 (define rep      ; "read-eval-print" loop.
   (lambda ()
-    (display "--> ")
+    (display "ヽ༼ຈل͜ຈ༽ﾉ ")
     ;; notice that we don't save changes to the environment...
     (let ([answer (top-level-eval (parse-exp (read)))])
       ;; TODO: are there answers that should display differently?
