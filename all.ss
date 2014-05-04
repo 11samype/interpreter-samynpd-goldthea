@@ -60,6 +60,9 @@
 	(test-exp expression?)
 	(then-exp expression?)
 	(else-exp expression?)]
+  [if-2-exp 
+	(test-exp expression?)
+	(then-exp expression?)]
   [let-exp
 	(syms (list-of symbol?))
 	(exprs (list-of expression?))
@@ -67,6 +70,8 @@
   [lambda-exp
 	(params (lambda (x) (or (symbol? x) (pair? x) (null? x))))
 	(body expression?)]
+  [quote-exp
+	(arg scheme-value?)]
   )
 
 
@@ -90,15 +95,34 @@
   (lambda (datum)
     (cond
      [(symbol? datum) (var-exp datum)]
-     [(number? datum) (lit-exp datum)]
+     [(or (number? datum)
+          (string? datum)
+          (vector? datum)
+          (boolean? datum)
+          (null? datum)) (lit-exp datum)]
      [(pair? datum)
       (cond
-       
+		[(eqv? (car datum) 'quote) (if (= (length datum) 2)
+                                      (quote-exp (cadr datum))
+                                      (eopl:error 'parse-exp "bad quote: ~s" datum))]
+		[(and (eqv? (car datum) 'if) (validate-if datum))
+	     (if (= (length datum) 4)
+		 (if-exp 
+		   (parse-exp (cadr datum))
+		   (parse-exp (caddr datum))
+		   (parse-exp (cadddr datum)))
+		 (if-2-exp
+		   (parse-exp (cadr datum))
+		   (parse-exp (caddr datum))))]
        [else (app-exp (parse-exp (1st datum))
 		      (map parse-exp (cdr datum)))])]
      [else (eopl:error 'parse-exp "bad expression: ~s" datum)])))
 
-
+(define validate-if
+	(lambda (exp)
+		(if (and (> (length exp) 2) (< (length exp) 5))
+			#t
+			(eopl:error 'parse-exp "if-expression ~s does not have (only) test, then, and else" exp))))
 
 
 
@@ -188,7 +212,7 @@
 (define top-level-eval
   (lambda (form)
     ; later we may add things that are not expressions.
-    (eval-exp form global-env)))
+    (eval-exp form init-env)))
 
 ; eval-exp is the main component of the interpreter
 
@@ -200,14 +224,14 @@
 		[var-exp (id) ; look up its value.
 			(apply-env env id
 				identity-proc ; procedure to call if var is in env
-					(lambda () ; procedure to call if var is not in env
-						(apply-env global-env ; was init-env
-							id
-							identity-proc
+;					(lambda () ; procedure to call if var is not in env
+;						(apply-env global-env ; was init-env
+;							id
+;							identity-proc
 							(lambda () 
 								(error 'apply-env
 										"variable ~s is not bound" 
-										id)))))]
+										id)))]
       [app-exp (rator rands)
         (let ([proc-value (eval-exp rator env)]
               [args (eval-rands rands env)])
@@ -227,6 +251,9 @@
 		(if (eval-exp test-exp env)
 			(eval-exp then-exp env)
 			(eval-exp else-exp env))]
+	  [if-2-exp (test-exp then-exp)
+		(if (eval-exp test-exp env)
+			(eval-exp then-exp env))]
 	  [lambda-exp (params body)
 		(closure params body env)]
 	  [letrec-exp 
@@ -234,6 +261,8 @@
 		(eval-exp letrec-body
 			(extend-env-recursively 
 				proc-names idss bodies env))]
+	  [quote-exp (arg)
+		arg]
 	  
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
 
@@ -261,12 +290,14 @@
 
 (define *prim-proc-names* '(+ - * add1 sub1 cons =))
 
-(define global-env         ; for now, our initial global environment only contains 
+(define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
      *prim-proc-names*   ;  a value (not an expression) with an identifier.
      (map prim-proc      
           *prim-proc-names*)
      (empty-env)))
+	 
+(define global-env init-env)
 
 ; Usually an interpreter must define each 
 ; built-in procedure individually.  We are "cheating" a little bit.
@@ -284,6 +315,10 @@
 	  [(car) (car (args))]
 	  [(>=) (or (apply > args) (apply = args))]
       [(=) (= (1st args) (2nd args))]
+	  [(zero?) (= (1st args) 0)]
+	  [(null?) (= (1st args) '())]
+	  [(eq?) (eq? (1st args) (2nd args))]
+	  [(equal?) (equal? (1st args) (2nd args))]
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-proc)])))
