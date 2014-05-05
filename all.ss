@@ -50,12 +50,12 @@
        (list number? vector? boolean? symbol? string? pair? null?))))]
   [app-exp        ; applications
    (rator expression?)
-   (rands (list-of expression?))]  
-  [letrec-exp
-	(proc-names (list-of symbol?))
-	(idss (list-f (list-of symbol?)))
-	(bodies (list-of expression?))
-	(letrec-body expression?)]
+   (rands (list-of expression?))]
+;  [letrec-exp
+;	(proc-names (list-of symbol?))
+;	(idss (list-f (list-of symbol?)))
+;	(bodies (list-of expression?))
+;	(letrec-body expression?)]
   [if-exp 
 	(test-exp expression?)
 	(then-exp expression?)
@@ -91,7 +91,7 @@
 (define 2nd cadr)
 (define 3rd caddr)
 
-(define parse-exp         
+(define parse-exp
   (lambda (datum)
     (cond
      [(symbol? datum) (var-exp datum)]
@@ -102,12 +102,11 @@
           (null? datum)) (lit-exp datum)]
      [(pair? datum)
       (cond
-	    [(and (or (eqv? (car datum) 'let)
-	        (eqv? (car datum) 'let*)
-			(eqv? (car datum) 'letrec)) (validate-let datum))
+	    [(and (eqv? (car datum) 'let)
+			  (validate-let datum))
 		   (let-exp ;(car datum)
 			 (map car (cadr datum))
-			 (map parse-exp (cadr datum))
+			 (map parse-exp (map cadr (cadr datum)))
 			 (map parse-exp (cddr datum)))]
 		[(eqv? (car datum) 'quote) (if (= (length datum) 2)
                                       (quote-exp (cadr datum))
@@ -158,8 +157,6 @@
 	(lambda (ls)
 		(cond [(null? ls) #t]
 			[else (and (proper-2-list? (car ls)) (proper-list-2-lists? (cdr ls)))])))
-
-
 
 ;-------------------+
 ;                   |
@@ -271,7 +268,7 @@
 	  [let-exp (syms exprs bodies)
 		(let ([extended-env
 			(extend-env syms
-				(map (lambda (e)(eval-exp e env)) 
+				(map (lambda (e) (eval-exp e env)) 
 					exprs) 
 				env)])
 		(let loop ([bodies bodies]) 
@@ -288,11 +285,11 @@
 			(eval-exp then-exp env))]
 	  [lambda-exp (params body)
 		(closure params body env)]
-	  [letrec-exp 
-		(proc-names idss bodies letrec-body)
-		(eval-exp letrec-body
-			(extend-env-recursively 
-				proc-names idss bodies env))]
+;	  [letrec-exp 
+;		(proc-names idss bodies letrec-body)
+;		(eval-exp letrec-body
+;			(extend-env-recursively 
+;				proc-names idss bodies env))]
 	  [quote-exp (arg)
 		arg]
 	  
