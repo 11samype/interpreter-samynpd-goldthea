@@ -12,16 +12,6 @@
 ;-------------------+
 
 ;; Parsed expression datatypes
-
-; datatype for procedures.  At first there is only one
-; kind of procedure, but more kinds will be added later.
-
-(define-datatype proc-val proc-val?
-  [prim-proc
-   (name symbol?)]
-  [closure (params (list-of symbol?))
-			(body expression?)
-			(env environment?)])
 	 
 	 
 	 
@@ -37,6 +27,22 @@
    (syms (list-of symbol?))
    (vals (list-of scheme-value?))
    (env environment?)))
+   
+ ; datatype for procedures.  At first there is only one
+; kind of procedure, but more kinds will be added later.
+
+(define-datatype proc-val proc-val?
+  [prim-proc
+   (name symbol?)]
+  [closure (params (list-of symbol?))
+			(body expression?)
+			(env environment?)])  
+   
+   
+   
+   
+   
+   
 ;; Parsed expression datatypes
 
 (define-datatype expression expression?
@@ -68,12 +74,25 @@
 	(exprs (list-of expression?))
 	(bodies (list-of expression?))]
   [lambda-exp
-	(params (lambda (x) (or (symbol? x) (pair? x) (null? x))))
-	(body expression?)]
+	(params list-of-symbols?)
+	(body list-of-expressions?)]
+  [lambda-exp-parenless
+	(params list-of-symbols?)
+	(body list-of-expressions?)]
+	
   [quote-exp
 	(arg scheme-value?)]
   )
 
+ ; have to deal with improper list inputs later
+ 
+ (define list-of-expressions?
+	(lambda (list1)
+		(and (map expression? list1))))
+		
+(define list-of-symbols?
+	(lambda (list1)
+		(and (map symbol? list1))))
 
 ;-------------------+
 ;                   |
@@ -114,9 +133,59 @@
 		 (if-2-exp
 		   (parse-exp (cadr datum))
 		   (parse-exp (caddr datum))))]
+
+		   ;;;;;;;;;;;;;;;;;;;;;;;;; lambda code
+		   
+		   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+       ((equal? (car datum) 'lambda)
+			(if (symbol? (cadr datum))
+			;;; error check
+				(if (null? (get-body (cdr datum)))
+					(eopl:error 'parse-exp "no lambda body ~s" datum)
+			(lambda-exp-parenless (get-vars (cdr datum))
+				(car (map parse-exp (get-body (cdr datum))))))
+			;;; error check
+				(if (null? (cddr datum))
+					(eopl:error 'parse-exp "no lambda body ~s" datum)
+					
+			;;; error check
+				(if (contains-non-variable (cadr datum))
+					(eopl:error 'parse-exp "non-variable input to lambda ~s" datum)
+				
+			(lambda-exp (cadr datum)
+				(car (map parse-exp (cddr datum))))))))
+		   
+		   ;;;;;;;;;;;;;;;;;;;;;;;
+		
        [else (app-exp (parse-exp (1st datum))
 		      (map parse-exp (cdr datum)))])]
      [else (eopl:error 'parse-exp "bad expression: ~s" datum)])))
+	 
+(define contains-non-variable
+	(lambda (list1)
+		(if (null? list1)
+			#f
+		(if (or (number? (car list1)) (boolean? (car list1)))
+			#t
+		(contains-non-variable (cdr list1)))))) 
+	 
+	 
+(define get-vars
+	(lambda (list1)
+		(if (null? list1)
+			'()
+		(if (list? (car list1))
+			'()
+		(cons (car list1) (get-vars (cdr list1)))))))
+		
+(define get-body
+	(lambda (list1)
+		(if (null? list1)
+			'()
+		(if (list? (car list1))
+			list1
+		(get-body (cdr list1))))))
+
 
 (define validate-if
 	(lambda (exp)
@@ -254,8 +323,10 @@
 	  [if-2-exp (test-exp then-exp)
 		(if (eval-exp test-exp env)
 			(eval-exp then-exp env))]
-	  [lambda-exp (params body)
-		(closure params body env)]
+	  [lambda-exp (params bodys)
+		(closure params bodys env)]
+	  [lambda-exp-parenless (params bodys)
+	    (closure params bodys env)]
 	  [letrec-exp 
 		(proc-names idss bodies letrec-body)
 		(eval-exp letrec-body
@@ -265,6 +336,13 @@
 		arg]
 	  
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
+	  
+;lambdas with multiple bodies, run each body, return the return value of the last one.
+
+; in order to handle lambdas
+;	parse all cases of lambda
+	;input should be regular, dotted or non-parenned
+	; it also needs to handle multiple bodies
 
 ; evaluate the list of operands, putting results into a list
 
@@ -282,7 +360,7 @@
     (cases proc-val proc-value
       [prim-proc (op) (apply-prim-proc op args)]
 	  [closure (params body env)
-		(let ([extended-env (extended-env params args env)])
+		(let ([extended-env (extend-env params args env)])
 			(eval-exp body extended-env))]
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
@@ -337,5 +415,7 @@
 
 
 
-
+(trace eval-one-exp)
+(trace top-level-eval)
+(trace eval-exp)
 
