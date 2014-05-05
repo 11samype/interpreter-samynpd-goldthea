@@ -38,9 +38,7 @@
 			(body expression?)
 			(env environment?)])  
    
-   
-   
-   
+
    
    
 ;; Parsed expression datatypes
@@ -74,25 +72,18 @@
 	(exprs (list-of expression?))
 	(bodies (list-of expression?))]
   [lambda-exp
-	(params list-of-symbols?)
-	(body list-of-expressions?)]
+	(params (list-of symbol?))
+	(body (list-of expression?))]
   [lambda-exp-parenless
-	(params list-of-symbols?)
-	(body list-of-expressions?)]
+	(params (list-of symbol?))
+	(body (list-of expression?))]
 	
   [quote-exp
 	(arg scheme-value?)]
   )
 
  ; have to deal with improper list inputs later
- 
- (define list-of-expressions?
-	(lambda (list1)
-		(and (map expression? list1))))
-		
-(define list-of-symbols?
-	(lambda (list1)
-		(and (map symbol? list1))))
+
 
 ;-------------------+
 ;                   |
@@ -160,7 +151,7 @@
 					(eopl:error 'parse-exp "non-variable input to lambda ~s" datum)
 				
 			(lambda-exp (cadr datum)
-				(car (map parse-exp (cddr datum))))))))
+				(map parse-exp (cddr datum)))))))
 		   
 		   ;;;;;;;;;;;;;;;;;;;;;;;
 		
@@ -356,7 +347,7 @@
 		(if (eval-exp test-exp env)
 			(eval-exp then-exp env))]
 	  [lambda-exp (params bodys)
-		(closure params bodys env)]
+		(run-multiple-lambda-bodys closure params bodys env)]
 	  [lambda-exp-parenless (params bodys)
 	    (closure params bodys env)]
 	  [letrec-exp 
@@ -369,6 +360,19 @@
 	  
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
 	  
+(define run-multiple-lambda-bodys
+	(lambda (closure params bodys env)
+		(if (null? (cdr bodys))
+			(closure params (car bodys) env)
+			(begin
+			(closure params (car bodys) env)
+			(run-multiple-lambda-bodys closure params (cdr bodys) env)))))
+			
+(define test-lambda
+	(lambda ()
+	(display 100000)))
+(trace run-multiple-lambda-bodys)
+(trace test-lambda)
 ;lambdas with multiple bodies, run each body, return the return value of the last one.
 
 ; in order to handle lambdas
@@ -459,10 +463,4 @@
 
 (define eval-one-exp
   (lambda (x) (top-level-eval (parse-exp x))))
-
-
-
-(trace eval-one-exp)
-(trace top-level-eval)
-(trace eval-exp)
 
