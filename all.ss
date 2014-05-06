@@ -379,11 +379,11 @@
 		(run-multiple-lambda-bodys closure params bodys env)]
 	  [lambda-exp-parenless (params bodys)
 	    (closure params bodys env)]
-	  [letrec-exp 
-		(proc-names idss bodies letrec-body)
-		(eval-exp letrec-body
-			(extend-env-recursively 
-				proc-names idss bodies env))]
+;	  [letrec-exp 
+;		(proc-names idss bodies letrec-body)
+;		(eval-exp letrec-body
+;			(extend-env-recursively 
+;				proc-names idss bodies env))]
 	  [quote-exp (arg)
 		arg]
 	  
@@ -400,8 +400,7 @@
 (define test-lambda
 	(lambda ()
 	(display 100000)))
-(trace run-multiple-lambda-bodys)
-(trace test-lambda)
+
 ;lambdas with multiple bodies, run each body, return the return value of the last one.
 
 ; in order to handle lambdas
@@ -431,7 +430,7 @@
                    "Attempt to apply bad procedure: ~s" 
                     proc-value)])))
 
-(define *prim-proc-names* '(+ - * / add1 sub1 not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? number? length pair? cons >= = zero? null? eq? equal? procedure?))
+(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = zero? null? eq? equal? procedure? map apply))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
@@ -463,6 +462,8 @@
 	  [(list->vector) (list->vector (1st args))]
 	  [(vector->list) (vector->list (1st args))]
 	  [(vector?) (vector? (1st args))]
+	  [(vector) (list->vector args)]
+	  [(vector-ref) (vector-ref (1st args) (2nd args))]
 	  [(number?) (number? (1st args))]
 	  [(symbol?) (symbol? (1st args))]
 	  [(caar) (caar (1st args))]
@@ -476,10 +477,31 @@
 	  [(null?) (null? (1st args))]
 	  [(eq?) (eq? (1st args) (2nd args))]
 	  [(equal?) (equal? (1st args) (2nd args))]
+	  [(set-car!) (set-car! (1st args) (2nd args))]
+      [(set-cdr!) (set-cdr! (1st args) (2nd args))]
 	  [(procedure?) (proc-val? (1st args))]
+	  [(map) (cases proc-val (1st args)
+				[prim-proc (proc)
+					(if (null? (cadr args))
+						'()
+						(cons (apply-prim-proc proc (caadr args))
+							 (apply-prim-proc 'map (cdadr args))))]
+				[closure (params body env)
+					(if (null? (cadr args))
+						'()
+						(cons (apply-prim-proc (1st args) (caadr args))
+							 (apply-prim-proc 'map (cdadr args))))])]
+	  [(apply) (apply (1st args) (2nd args))] ;;;;;;NEED TO IMPLEMENT FOR REAL
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-proc)])))
+			
+(define my-map
+	(lambda (func ls)
+		(cond [(null? ls) '()]
+			[else (cons (func (car ls)) (my-map func (cdr ls)))])))
+
+(trace my-map)
 
 (define rep      ; "read-eval-print" loop.
   (lambda ()
@@ -492,3 +514,4 @@
 
 (define eval-one-exp
   (lambda (x) (top-level-eval (parse-exp (syntax-expand x)))))
+
