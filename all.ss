@@ -282,7 +282,12 @@
 ;                       |
 ;-----------------------+
 
-; To be added later
+; needs
+; and
+; or
+; begin
+; let*
+; case
 (define syntax-expand
   (lambda (datum)
     (cond
@@ -430,7 +435,7 @@
                    "Attempt to apply bad procedure: ~s" 
                     proc-value)])))
 
-(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = zero? null? eq? equal? procedure? map apply))
+(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
@@ -471,6 +476,9 @@
 	  [(cadar) (cadar (1st args))]
 	  [(length) (length (1st args))]
 	  [(pair?) (pair? (1st args))]
+	  [(<) (apply < args)]
+	  [(>) (apply > args)]
+	  [(<=) (or (apply < args) (apply = args))]
 	  [(>=) (or (apply > args) (apply = args))]
       [(=) (= (1st args) (2nd args))]
 	  [(zero?) (= (1st args) 0)]
