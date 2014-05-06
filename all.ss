@@ -55,11 +55,11 @@
   [app-exp        ; applications
    (rator expression?)
    (rands (list-of expression?))]
-;  [letrec-exp
-;	(proc-names (list-of symbol?))
-;	(idss (list-f (list-of symbol?)))
-;	(bodies (list-of expression?))
-;	(letrec-body expression?)]
+  [letrec-exp
+	(proc-names (list-of symbol?))
+	(idss (list-f (list-of symbol?)))
+	(bodies (list-of expression?))
+	(letrec-body expression?)]
   [if-exp 
 	(test-exp expression?)
 	(then-exp expression?)
@@ -148,7 +148,13 @@
 			;;; error check
 				(if (contains-non-variable (cadr datum))
 					(eopl:error 'parse-exp "non-variable input to lambda ~s" datum)
-				
+					
+			; improper list inputs
+			;(if (not (list? (cadr datum)))
+			
+			
+			
+			
 			(lambda-exp (cadr datum)
 				(map parse-exp (cddr datum)))))))
 		   
@@ -276,16 +282,40 @@
 ;                       |
 ;-----------------------+
 
-
-
 ; To be added later
+(define syntax-expand
+  (lambda (datum)
+    (cond
+	 [(equal? (car datum) 'cond) (cond-expand datum)]
+	 [else datum])))
+			
 
-
-
-
-
-
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;cond
+; called on cond expression will give you equivelent nested if statements
+(define cond-test-getter
+	(lambda (expression)
+		(if (null? expression)
+			'()
+		(cons (caar expression) (cond-test-getter (cdr expression))))))
+		
+(define cond-body-getter
+	(lambda (expression)
+		(if (null? expression)
+			'()
+		(cons (cadar expression) (cond-body-getter (cdr expression))))))
+		
+(define cond-expand
+	(lambda (cond-expression)
+		(cond-expand-helper (cond-test-getter (cdr cond-expression)) (cond-body-getter (cdr cond-expression)))))
+		
+(define cond-expand-helper
+	(lambda (test-list body-list)
+		(if (null? (cdr test-list))
+		(list 'if (car test-list) (car body-list))
+		(list 'if (car test-list) (car body-list)
+				  (cond-expand-helper (cdr test-list) (cdr body-list)))
+		)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 ;-------------------+
@@ -460,4 +490,3 @@
 
 (define eval-one-exp
   (lambda (x) (top-level-eval (parse-exp x))))
-
