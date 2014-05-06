@@ -311,7 +311,9 @@
 (define cond-expand-helper
 	(lambda (test-list body-list)
 		(if (null? (cdr test-list))
-		(list 'if (car test-list) (car body-list))
+			(if (eqv? (car test-list) 'else)
+				(car body-list)
+		(list 'if (car test-list) (car body-list)))
 		(list 'if (car test-list) (car body-list)
 				  (cond-expand-helper (cdr test-list) (cdr body-list)))
 		)))
@@ -489,4 +491,4 @@
       (rep))))  ; tail-recursive, so stack doesn't grow.
 
 (define eval-one-exp
-  (lambda (x) (top-level-eval (parse-exp x))))
+  (lambda (x) (top-level-eval (parse-exp (syntax-expand x)))))
