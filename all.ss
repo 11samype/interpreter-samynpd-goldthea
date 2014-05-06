@@ -282,7 +282,12 @@
 ;                       |
 ;-----------------------+
 
-; To be added later
+; needs
+; and
+; or
+; begin
+; let*
+; case
 (define syntax-expand
   (lambda (datum)
     (cond
@@ -311,7 +316,9 @@
 (define cond-expand-helper
 	(lambda (test-list body-list)
 		(if (null? (cdr test-list))
-		(list 'if (car test-list) (car body-list))
+			(if (eqv? (car test-list) 'else)
+				(car body-list)
+		(list 'if (car test-list) (car body-list)))
 		(list 'if (car test-list) (car body-list)
 				  (cond-expand-helper (cdr test-list) (cdr body-list)))
 		)))
@@ -428,7 +435,7 @@
                    "Attempt to apply bad procedure: ~s" 
                     proc-value)])))
 
-(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = zero? null? eq? equal? procedure? map apply))
+(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
@@ -469,6 +476,9 @@
 	  [(cadar) (cadar (1st args))]
 	  [(length) (length (1st args))]
 	  [(pair?) (pair? (1st args))]
+	  [(<) (apply < args)]
+	  [(>) (apply > args)]
+	  [(<=) (or (apply < args) (apply = args))]
 	  [(>=) (or (apply > args) (apply = args))]
       [(=) (= (1st args) (2nd args))]
 	  [(zero?) (= (1st args) 0)]
@@ -511,4 +521,5 @@
       (rep))))  ; tail-recursive, so stack doesn't grow.
 
 (define eval-one-exp
-  (lambda (x) (top-level-eval (parse-exp x))))
+  (lambda (x) (top-level-eval (parse-exp (syntax-expand x)))))
+
