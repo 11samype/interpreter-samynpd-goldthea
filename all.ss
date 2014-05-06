@@ -479,27 +479,27 @@
       [(set-cdr!) (set-cdr! (1st args) (2nd args))]
 	  [(procedure?) (proc-val? (1st args))]
 	  [(map) (cases proc-val (1st args)
-				[prim-proc (proc)
+				[prim-proc (op)
 					(if (null? (cadr args))
 						'()
-						(cons (apply-prim-proc proc (caadr args))
-							 (apply-prim-proc 'map (cdadr args))))]
+						(cons (apply-prim-proc op (list (caadr args)))
+							 (apply-prim-proc 'map (list (1st args) (cdadr args)))))]
 				[closure (params body env)
 					(if (null? (cadr args))
 						'()
-						(cons (apply-prim-proc (1st args) (caadr args))
-							 (apply-prim-proc 'map (cdadr args))))])]
+						(cons (apply-prim-proc (1st args) (list (caadr args)))
+							 (apply-prim-proc 'map (list (1st args) (cdadr args)))))])]
 	  [(apply) (apply (1st args) (2nd args))] ;;;;;;NEED TO IMPLEMENT FOR REAL
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-proc)])))
 			
+(trace apply-prim-proc)
+			
 (define my-map
 	(lambda (func ls)
 		(cond [(null? ls) '()]
 			[else (cons (func (car ls)) (my-map func (cdr ls)))])))
-
-(trace my-map)
 
 (define rep      ; "read-eval-print" loop.
   (lambda ()
