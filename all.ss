@@ -499,12 +499,19 @@
 						'()
 						(cons (apply-prim-proc (1st args) (list (caadr args)))
 							 (apply-prim-proc 'map (list (1st args) (cdadr args)))))])]
-	  [(apply) (apply (1st args) (2nd args))] ;;;;;;NEED TO IMPLEMENT FOR REAL
+	  [(apply) (cases proc-val (1st args)
+				[prim-proc (op)
+					(apply-prim-proc op (apply-helper-all-list (cdr args)))]
+					[else +])]
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-proc)])))
 			
-(trace apply-prim-proc)
+(define apply-helper-all-list
+	(lambda (args)
+		(cond [(null? args) '()]
+			[(list? (car args)) (append (car args) (apply-helper-all-list (cdr args)))]
+			[else (cons (car args) (apply-helper-all-list (cdr args)))])))
 			
 (define my-map
 	(lambda (func ls)
