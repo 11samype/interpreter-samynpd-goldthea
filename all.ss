@@ -16,6 +16,16 @@
    (vals (list-of scheme-value?))
    (env environment?)))
    
+  
+;  (define improper-checker
+;	(lambda (x)
+;		(and (not (list? x)) (pair? x))))
+;		
+ ; (define improper-or-regular
+	;(lambda (x)
+	;	(or ((list-of symbol?) x) (improper-checker x))))
+   
+
  ; datatype for procedures.  At first there is only one
 ; kind of procedure, but more kinds will be added later.
 
@@ -71,6 +81,12 @@
 	(bodies (list-of expression?))]
   [and-exp
 	(body (list-of expression?))]
+  
+  [lambda-exp-improper
+	(params improper-checker)
+	(body (list-of expression?))]
+
+	
   [or-exp
     (body (list-of expression?))]
 
@@ -78,10 +94,6 @@
   [quote-exp
 	(arg scheme-value?)]
   )
-
-  (define improper-checker
-	(lambda (x)
-		(and (not (list? x)) (pair? x))))
 
 ;-------------------+
 ;                   |
@@ -142,6 +154,9 @@
 					
 
 			(if (and (not (list? (cadr datum))) (pair? 	(cadr datum)))
+
+			(lambda-exp-improper (cadr datum)
+				(map parse-exp (cddr datum)))
 				
 				;error check (currently misses the improper list input)
 				(if (contains-non-variable (cadr datum))
@@ -523,3 +538,5 @@
 (define eval-one-exp
   (lambda (x) (top-level-eval (parse-exp x))))
 
+(trace parse-exp)
+(trace eval-exp)
