@@ -36,7 +36,12 @@
    (name symbol?)]
   [closure (params (list-of symbol?))
 			(body expression?)
-			(env environment?)])  
+			(env environment?)]
+			
+  [closure1 (params (list-of symbol?))
+			(body expression?)
+			(env environment?)]
+	)
    
 
    
@@ -81,8 +86,6 @@
   [quote-exp
 	(arg scheme-value?)]
   )
-
- ; have to deal with improper list inputs later
 
 
 ;-------------------+
@@ -136,11 +139,8 @@
 		   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
        ((equal? (car datum) 'lambda)
 			(if (symbol? (cadr datum))
-			;;; error check
-				(if (null? (get-body (cdr datum)))
-					(eopl:error 'parse-exp "no lambda body ~s" datum)
-			(lambda-exp-parenless (get-vars (cdr datum))
-				(car (map parse-exp (get-body (cdr datum))))))
+			(lambda-exp-parenless (list (cadr datum))
+				(map parse-exp (cddr datum)))
 			;;; error check
 				(if (null? (cddr datum))
 					(eopl:error 'parse-exp "no lambda body ~s" datum)
@@ -149,12 +149,6 @@
 				(if (contains-non-variable (cadr datum))
 					(eopl:error 'parse-exp "non-variable input to lambda ~s" datum)
 					
-			; improper list inputs
-			;(if (not (list? (cadr datum)))
-			
-			
-			
-			
 			(lambda-exp (cadr datum)
 				(map parse-exp (cddr datum)))))))
 		   
@@ -287,13 +281,30 @@
 ; or
 ; begin
 ; let*
-; case
+;case
 (define syntax-expand
   (lambda (datum)
     (cond
+	
 	 [(equal? (car datum) 'cond) (cond-expand datum)]
+	 
+	 ;[(and (equal? (caar datum) 'lambda) (symbol? (cadar datum))) (lambda-paren-expand datum)]
+	
 	 [else datum])))
-			
+	 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;parenless lambdas
+
+(define lambda-paren-expand
+	(lambda (lambda-expression)
+	(list (append (list 'lambda (list (cadar lambda-expression)))
+		(cddar lambda-expression))  (cdr lambda-expression))))
+		
+(define args-extension
+	(lambda (lambda-expression)
+		(if (null? lambda-expression)
+		'()
+		(list (car lambda-expression) (args-extension (cdr lambda-expression))))))
+; 2, special list the body
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;cond
 ; called on cond expression will give you equivelent nested if statements
@@ -383,7 +394,7 @@
 	  [lambda-exp (params bodys)
 		(run-multiple-lambda-bodys closure params bodys env)]
 	  [lambda-exp-parenless (params bodys)
-	    (closure params bodys env)]
+	    (run-multiple-lambda-bodys closure1 params bodys env)]
 ;	  [letrec-exp 
 ;		(proc-names idss bodies letrec-body)
 ;		(eval-exp letrec-body
@@ -395,25 +406,13 @@
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
 	  
 (define run-multiple-lambda-bodys
-	(lambda (closure params bodys env)
+	(lambda (closure1 params bodys env)
 		(if (null? (cdr bodys))
-			(closure params (car bodys) env)
+			(closure1 params (car bodys) env)
 			(begin
-			(closure params (car bodys) env)
-			(run-multiple-lambda-bodys closure params (cdr bodys) env)))))
-			
-(define test-lambda
-	(lambda ()
-	(display 100000)))
+			(closure1 params (car bodys) env)
+			(run-multiple-lambda-bodys closure1 params (cdr bodys) env)))))
 
-;lambdas with multiple bodies, run each body, return the return value of the last one.
-
-; in order to handle lambdas
-;	parse all cases of lambda
-	;input should be regular, dotted or non-parenned
-	; it also needs to handle multiple bodies
-
-; evaluate the list of operands, putting results into a list
 
 (define eval-rands
   (lambda (rands env)
@@ -428,12 +427,20 @@
   (lambda (proc-value args)
     (cases proc-val proc-value
       [prim-proc (op) (apply-prim-proc op args)]
+	  
 	  [closure (params body env)
-		(let ([extended-env (extend-env params args env)])
+		(let ([extended-env (extend-env params  args env)])
 			(eval-exp body extended-env))]
+			
+	  [closure1 (params body env)
+		(let ([extended-env (extend-env params  (list args) env)])
+			(eval-exp body extended-env))]
+	
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
                     proc-value)])))
+					
+(trace apply-proc)
 
 (define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply))
 
@@ -503,13 +510,6 @@
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-proc)])))
-			
-(define my-map
-	(lambda (func ls)
-		(cond [(null? ls) '()]
-			[else (cons (func (car ls)) (my-map func (cdr ls)))])))
-
-(trace my-map)
 
 (define rep      ; "read-eval-print" loop.
   (lambda ()
