@@ -296,7 +296,7 @@
 			
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;cond
-; called on cond expression will give you equivelent nested if statements
+; called on cond expression will give you equivalent nested if statements
 (define cond-test-getter
 	(lambda (expression)
 		(if (null? expression)
