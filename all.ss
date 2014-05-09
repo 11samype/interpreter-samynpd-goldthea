@@ -82,6 +82,10 @@
   [lambda-exp-parenless
 	(params (list-of symbol?))
 	(body (list-of expression?))]
+  [and-exp
+	(body (list-of expression?))]
+  [or-exp
+	(body (list-of expression?))]
 	
   [quote-exp
 	(arg scheme-value?)]
@@ -137,7 +141,7 @@
 		   ;;;;;;;;;;;;;;;;;;;;;;;;; lambda code
 		   
 		   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-       ((equal? (car datum) 'lambda)
+       ((eqv? (car datum) 'lambda)
 			(if (symbol? (cadr datum))
 			(lambda-exp-parenless (list (cadr datum))
 				(map parse-exp (cddr datum)))
@@ -153,6 +157,17 @@
 				(map parse-exp (cddr datum)))))))
 		   
 		   ;;;;;;;;;;;;;;;;;;;;;;;
+		   
+		[(eqv? (car datum) 'and)
+			(and-exp (map parse-exp (cdr datum)))]
+		[(eqv? (car datum) 'or)
+			(and-exp (map parse-exp (cdr datum)))]
+		[(eqv? (car datum) 'case)
+			(and-exp (map parse-exp (cdr datum)))]
+		[(eqv? (car datum) 'begin)
+			(and-exp (map parse-exp (cdr datum)))]
+		[(eqv? (car datum) 'cond)
+			(and-exp (map parse-exp (cdr datum)))]
 		
        [else (app-exp (parse-exp (1st datum))
 		      (map parse-exp (cdr datum)))])]
@@ -276,17 +291,21 @@
 ;                       |
 ;-----------------------+
 
-; needs
+; needs:
 ; and
 ; or
 ; begin
 ; let*
-;case
+; case
 (define syntax-expand
-  (lambda (datum)
-    (cond
+  (lambda (exp)
+  
+	(cases expression exp
+		
+	)
+    ;(cond
 	
-	 [(equal? (car datum) 'cond) (cond-expand datum)]
+	 ;[(equal? (car datum) 'cond) (cond-expand datum)]
 	 
 	 ;[(and (equal? (caar datum) 'lambda) (symbol? (cadar datum))) (lambda-paren-expand datum)]
 	
