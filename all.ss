@@ -79,8 +79,8 @@
   [cond-exp
 	(tests (list-of expression?))
 	(bodies (list-of expression?))]
-  [and-exp
-	(body (list-of expression?))]
+;  [and-exp
+;	(body (list-of expression?))]
   
   [lambda-exp-improper
 	(params improper-checker)
