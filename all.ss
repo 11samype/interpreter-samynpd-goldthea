@@ -66,14 +66,14 @@
   [lambda-exp-parenless
 	(params symbol?)
 	(body (list-of expression?))]
-
+  [cond-exp
+	(tests (list-of expression?))
+	(bodies (list-of expression?))]
   [and-exp
 	(body (list-of expression?))]
   [or-exp
     (body (list-of expression?))]
 
-  [lambda-exp-improper
-	(params (improper-checker))
 	
   [quote-exp
 	(arg scheme-value?)]
@@ -142,8 +142,6 @@
 					
 
 			(if (and (not (list? (cadr datum))) (pair? 	(cadr datum)))
-			(lambda-exp-improper (cadr datum)
-				(map parse-exp (cddr datum)))
 				
 				;error check (currently misses the improper list input)
 				(if (contains-non-variable (cadr datum))
@@ -154,20 +152,48 @@
 		   
 		   ;;;;;;;;;;;;;;;;;;;;;;;
 		   
-		[(eqv? (car datum) 'and)
-			(and-exp (map parse-exp (cdr datum)))]
-		[(eqv? (car datum) 'or)
-			(and-exp (map parse-exp (cdr datum)))]
-		[(eqv? (car datum) 'case)
-			(and-exp (map parse-exp (cdr datum)))]
-		[(eqv? (car datum) 'begin)
-			(and-exp (map parse-exp (cdr datum)))]
+;		[(eqv? (car datum) 'and)
+;			(and-exp (map parse-exp (cdr datum)))]
+;		[(eqv? (car datum) 'or)
+;			(and-exp (map parse-exp (cdr datum)))]
+;		[(eqv? (car datum) 'case)
+;			(and-exp (map parse-exp (cdr datum)))]
+;		[(eqv? (car datum) 'begin)
+;			(and-exp (map parse-exp (cdr datum)))]
 		[(eqv? (car datum) 'cond)
-			(and-exp (map parse-exp (cdr datum)))]
+			(cond-exp (map parse-exp (map car (cdr datum))) (map parse-exp (map cadr (cdr datum))))]
 		
        [else (app-exp (parse-exp (1st datum))
 		      (map parse-exp (cdr datum)))])]
      [else (eopl:error 'parse-exp "bad expression: ~s" datum)])))
+	 
+(trace parse-exp)
+	 
+(define cond-test-getter
+	(lambda (expression)
+		(if (null? expression)
+			'()
+		(cons (caar expression) (cond-test-getter (cdr expression))))))
+		
+(define cond-body-getter
+	(lambda (expression)
+		(if (null? expression)
+			'()
+		(cons (cadar expression) (cond-body-getter (cdr expression))))))
+		
+(define cond-expand
+	(lambda (cond-expression)
+		(cond-expand-helper (cond-test-getter (cdr cond-expression)) (cond-body-getter (cdr cond-expression)))))
+		
+(define cond-expand-helper
+	(lambda (test-list body-list)
+		(if (null? (cdr test-list))
+			(if (eqv? (car test-list) 'else)
+				(car body-list)
+		(list 'if (car test-list) (car body-list)))
+		(list 'if (car test-list) (car body-list)
+				  (cond-expand-helper (cdr test-list) (cdr body-list)))
+		)))
 	 
 (define contains-non-variable
 	(lambda (list1)
@@ -286,41 +312,37 @@
   (lambda (exp)
   
 	(cases expression exp
-		
-	)
-    ;(cond
-	
-	 ;[(equal? (car datum) 'cond) (cond-expand datum)]
-	 
-	 ;[(and (equal? (caar datum) 'lambda) (symbol? (cadar datum))) (lambda-paren-expand datum)]
-	
-	 [else datum]));)
-	 
-(define cond-test-getter
-	(lambda (expression)
-		(if (null? expression)
-			'()
-		(cons (caar expression) (cond-test-getter (cdr expression))))))
-		
-(define cond-body-getter
-	(lambda (expression)
-		(if (null? expression)
-			'()
-		(cons (cadar expression) (cond-body-getter (cdr expression))))))
-		
+		[lit-exp (datum) exp]
+		[var-exp (id) exp]
+		[app-exp (rator rands)
+			(app-exp (syntax-expand rator) (map syntax-expand rands))]
+		[let-exp (syms exprs bodies)
+			(let-exp syms (syntax-expand exprs) (syntax-expand bodies))]
+		[if-exp (test-exp then-exp else-exp)
+			(if-exp (syntax-expand test-exp)
+					(syntax-expand then-exp)
+					(syntax-expand else-exp))]
+		[if-2-exp (test-exp then-exp)
+			(if-2-exp (syntax-expand test-exp)
+					(syntax-expand then-exp))]
+		[lambda-exp (params bodys)
+			(lambda-exp id (map syntax-expand bodys))]
+		[lambda-exp-parenless (params bodys)
+			(lambda-exp id (map syntax-expand bodys))]
+		[quote-exp (arg) exp]
+		[cond-exp (tests bodies)
+			(cond-expand tests bodies)]
+		[else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]
+	)))
+
 (define cond-expand
-	(lambda (cond-expression)
-		(cond-expand-helper (cond-test-getter (cdr cond-expression)) (cond-body-getter (cdr cond-expression)))))
-		
-(define cond-expand-helper
-	(lambda (test-list body-list)
-		(if (null? (cdr test-list))
-			(if (eqv? (car test-list) 'else)
-				(car body-list)
-		(list 'if (car test-list) (car body-list)))
-		(list 'if (car test-list) (car body-list)
-				  (cond-expand-helper (cdr test-list) (cdr body-list)))
-		)))
+	(lambda (tests bodies)
+		(if (null? (cdr tests))
+			(if (eqv? (car tests) 'else)
+				(syntax-expand (car bodies))
+				(if-2-exp (car tests) (car bodies)))
+			(if-exp (syntax-expand (car tests)) (syntax-expand (car bodies)) (cond-expand (cdr tests) (cdr bodies))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
@@ -383,16 +405,13 @@
 		(run-multiple-lambda-bodys closure params bodys env)]
 	  [lambda-exp-parenless (params bodys)
 	    (run-multiple-lambda-bodys closure params bodys env)]
-	  [lambda-exp-improper (params bodys)
-		(run-multiple-lambda-bodys closure params bodys env)]
+
 ;	  [letrec-exp 
 ;		(proc-names idss bodies letrec-body)
 ;		(eval-exp letrec-body
 ;			(extend-env-recursively 
 ;				proc-names idss bodies env))]
-	  [quote-exp (arg)
-		arg]
-	  
+	  [quote-exp (arg) arg]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
 	  
 (define run-multiple-lambda-bodys
@@ -401,9 +420,9 @@
 			(closure params (car bodys) env)
 			(begin
 			(closure params (car bodys) env)
-			(run-multiple-lambda-bodys closure1 params (cdr bodys) env)))))
+			(run-multiple-lambda-bodys closure params (cdr bodys) env)))))
 			
-(trace run-multiple-lambda-bodys)
+;(trace run-multiple-lambda-bodys)
 
 
 (define eval-rands
@@ -432,7 +451,7 @@
                    "Attempt to apply bad procedure: ~s" 
                     proc-value)])))
 					
-(trace apply-proc)
+;(trace apply-proc)
 
 (define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply))
 
@@ -502,5 +521,5 @@
       (rep))))  ; tail-recursive, so stack doesn't grow.
 
 (define eval-one-exp
-  (lambda (x) (top-level-eval (parse-exp (syntax-expand x)))))
+  (lambda (x) (top-level-eval (parse-exp x))))
 
