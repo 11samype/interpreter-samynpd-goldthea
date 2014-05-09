@@ -1,20 +1,8 @@
-;:  Single-file version of the interpreter.
-;; Easier to submit to server, probably harder to use in the development process
-
-;(load "chez-init.ss") 
-
- 
-
 ;-------------------+
 ;                   |
 ;    DATATYPES      |
 ;                   |
 ;-------------------+
-
-;; Parsed expression datatypes
-	 
-	 
-	 
 	
 ;; environment type definitions
 
@@ -42,10 +30,7 @@
 			(body expression?)
 			(env environment?)]
 	)
-   
-
-   
-   
+ 
 ;; Parsed expression datatypes
 
 (define-datatype expression expression?
@@ -82,11 +67,17 @@
   [lambda-exp-parenless
 	(params (list-of symbol?))
 	(body (list-of expression?))]
+  [lambda-exp-improper
+	(params (improper-checker))
+	(body (list-of expression?))]
 	
   [quote-exp
 	(arg scheme-value?)]
   )
 
+  (define improper-checker
+	(lambda (x)
+		(and (not (list? x)) (pair? x))))
 
 ;-------------------+
 ;                   |
@@ -145,12 +136,17 @@
 				(if (null? (cddr datum))
 					(eopl:error 'parse-exp "no lambda body ~s" datum)
 					
-			;;; error check
+
+			(if (and (not (list? (cadr datum))) (pair? 	(cadr datum)))
+			(lambda-exp-improper (cadr datum)
+				(map parse-exp (cddr datum)))
+				
+				;error check (currently misses the improper list input)
 				(if (contains-non-variable (cadr datum))
-					(eopl:error 'parse-exp "non-variable input to lambda ~s" datum)
-					
+					(eopl:error 'parse-exp "non-variable input to lambda ~s" datum)	
+			
 			(lambda-exp (cadr datum)
-				(map parse-exp (cddr datum)))))))
+				(map parse-exp (cddr datum))))))))
 		   
 		   ;;;;;;;;;;;;;;;;;;;;;;;
 		
@@ -224,10 +220,6 @@
 ;                   |
 ;-------------------+
 
-
-
-
-
 ; Environment definitions for CSSE 304 Scheme interpreter.  Based on EoPL section 2.3
 
 (define empty-env
@@ -263,13 +255,6 @@
 	      (succeed (list-ref vals pos))
 	      (apply-env env sym succeed fail)))])))
 
-
-
-
-
-
-
-
 ;-----------------------+
 ;                       |
 ;   SYNTAX EXPANSION    |
@@ -287,26 +272,9 @@
     (cond
 	
 	 [(equal? (car datum) 'cond) (cond-expand datum)]
-	 
-	 ;[(and (equal? (caar datum) 'lambda) (symbol? (cadar datum))) (lambda-paren-expand datum)]
 	
 	 [else datum])))
 	 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;parenless lambdas
-
-(define lambda-paren-expand
-	(lambda (lambda-expression)
-	(list (append (list 'lambda (list (cadar lambda-expression)))
-		(cddar lambda-expression))  (cdr lambda-expression))))
-		
-(define args-extension
-	(lambda (lambda-expression)
-		(if (null? lambda-expression)
-		'()
-		(list (car lambda-expression) (args-extension (cdr lambda-expression))))))
-; 2, special list the body
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;cond
 ; called on cond expression will give you equivelent nested if statements
 (define cond-test-getter
 	(lambda (expression)
@@ -395,6 +363,8 @@
 		(run-multiple-lambda-bodys closure params bodys env)]
 	  [lambda-exp-parenless (params bodys)
 	    (run-multiple-lambda-bodys closure1 params bodys env)]
+	  [lambda-exp-improper (params bodys)
+		(run-multiple-lambda-bodys closure params bodys env)]
 ;	  [letrec-exp 
 ;		(proc-names idss bodies letrec-body)
 ;		(eval-exp letrec-body
@@ -458,43 +428,23 @@
 
 (define apply-prim-proc
   (lambda (prim-proc args)
-    (case prim-proc
-      [(+) (apply + args)]
-      [(-) (apply - args)]
-      [(*) (apply * args)]
-	  [(/) (apply / args)]
-      [(add1) (+ (1st args) 1)]
-      [(sub1) (- (1st args) 1)]
-	  [(not) (not (1st args))]
-      [(cons) (cons (1st args) (2nd args))]
-	  [(car) (car (1st args))]
-	  [(cdr) (cdr (1st args))]
-	  [(list) args]
-	  [(list?) (list? (1st args))]
-	  [(list->vector) (list->vector (1st args))]
-	  [(vector->list) (vector->list (1st args))]
-	  [(vector?) (vector? (1st args))]
-	  [(vector) (list->vector args)]
-	  [(vector-ref) (vector-ref (1st args) (2nd args))]
-	  [(number?) (number? (1st args))]
-	  [(symbol?) (symbol? (1st args))]
-	  [(caar) (caar (1st args))]
-	  [(cadr) (cadr (1st args))]
-	  [(cadar) (cadar (1st args))]
-	  [(length) (length (1st args))]
-	  [(pair?) (pair? (1st args))]
-	  [(<) (apply < args)]
-	  [(>) (apply > args)]
-	  [(<=) (or (apply < args) (apply = args))]
-	  [(>=) (or (apply > args) (apply = args))]
-      [(=) (= (1st args) (2nd args))]
-	  [(zero?) (= (1st args) 0)]
-	  [(null?) (null? (1st args))]
-	  [(eq?) (eq? (1st args) (2nd args))]
-	  [(equal?) (equal? (1st args) (2nd args))]
-	  [(set-car!) (set-car! (1st args) (2nd args))]
-      [(set-cdr!) (set-cdr! (1st args) (2nd args))]
-	  [(procedure?) (proc-val? (1st args))]
+    (case prim-proc [(+) (apply + args)]  [(-) (apply - args)]
+ [(*) (apply * args)]  [(/) (apply / args)]  [(add1) (+ (1st args) 1)]
+ [(sub1) (- (1st args) 1)]  [(not) (not (1st args))]  [(cons) (cons (1st args) (2nd args))]
+ [(car) (car (1st args))]  [(cdr) (cdr (1st args))] [(list) args]
+ [(list?) (list? (1st args))]  [(list->vector) (list->vector (1st args))]
+ [(vector->list) (vector->list (1st args))]  [(vector?) (vector? (1st args))]
+ [(vector) (list->vector args)]  [(vector-ref) (vector-ref (1st args) (2nd args))]
+ [(number?) (number? (1st args))]  [(symbol?) (symbol? (1st args))]
+ [(caar) (caar (1st args))]  [(cadr) (cadr (1st args))]  [(cadar) (cadar (1st args))]
+ [(length) (length (1st args))]  [(pair?) (pair? (1st args))]  [(<) (apply < args)]
+ [(>) (apply > args)]  [(<=) (or (apply < args) (apply = args))]
+ [(>=) (or (apply > args) (apply = args))]  [(=) (= (1st args) (2nd args))]
+ [(zero?) (= (1st args) 0)] [(null?) (null? (1st args))]
+ [(eq?) (eq? (1st args) (2nd args))]  [(equal?) (equal? (1st args) (2nd args))]
+ [(set-car!) (set-car! (1st args) (2nd args))]
+ [(set-cdr!) (set-cdr! (1st args) (2nd args))]
+ [(procedure?) (proc-val? (1st args))]
 	  [(map) (cases proc-val (1st args)
 				[prim-proc (op)
 					(if (null? (cadr args))
