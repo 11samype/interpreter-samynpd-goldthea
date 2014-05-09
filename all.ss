@@ -22,15 +22,14 @@
 (define-datatype proc-val proc-val?
   [prim-proc
    (name symbol?)]
-  [closure (params (list-of symbol?))
-			(body expression?)
-			(env environment?)]
-			
-  [closure1 (params (list-of symbol?))
+  [closure (params symbol-or-list?)
 			(body expression?)
 			(env environment?)]
 	)
  
+ (define symbol-or-list?
+	(lambda (x)
+		(or (symbol? x) (list-of symbol? x))))
 ;; Parsed expression datatypes
 
 (define-datatype expression expression?
@@ -65,7 +64,7 @@
 	(params (list-of symbol?))
 	(body (list-of expression?))]
   [lambda-exp-parenless
-	(params (list-of symbol?))
+	(params symbol?)
 	(body (list-of expression?))]
 
   [and-exp
@@ -135,7 +134,7 @@
 		   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
        ((eqv? (car datum) 'lambda)
 			(if (symbol? (cadr datum))
-			(lambda-exp-parenless (list (cadr datum))
+			(lambda-exp-parenless (cadr datum)
 				(map parse-exp (cddr datum)))
 			;;; error check
 				(if (null? (cddr datum))
@@ -383,7 +382,7 @@
 	  [lambda-exp (params bodys)
 		(run-multiple-lambda-bodys closure params bodys env)]
 	  [lambda-exp-parenless (params bodys)
-	    (run-multiple-lambda-bodys closure1 params bodys env)]
+	    (run-multiple-lambda-bodys closure params bodys env)]
 	  [lambda-exp-improper (params bodys)
 		(run-multiple-lambda-bodys closure params bodys env)]
 ;	  [letrec-exp 
@@ -397,12 +396,14 @@
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
 	  
 (define run-multiple-lambda-bodys
-	(lambda (closure1 params bodys env)
+	(lambda (closure params bodys env)
 		(if (null? (cdr bodys))
-			(closure1 params (car bodys) env)
+			(closure params (car bodys) env)
 			(begin
-			(closure1 params (car bodys) env)
+			(closure params (car bodys) env)
 			(run-multiple-lambda-bodys closure1 params (cdr bodys) env)))))
+			
+(trace run-multiple-lambda-bodys)
 
 
 (define eval-rands
@@ -420,12 +421,12 @@
       [prim-proc (op) (apply-prim-proc op args)]
 	  
 	  [closure (params body env)
+		(if (symbol? params)
+			(let ([extended-env (extend-env (list params)  (list args) env)])
+				(eval-exp body extended-env))
 		(let ([extended-env (extend-env params  args env)])
-			(eval-exp body extended-env))]
-			
-	  [closure1 (params body env)
-		(let ([extended-env (extend-env params  (list args) env)])
-			(eval-exp body extended-env))]
+			(eval-exp body extended-env)))]
+
 	
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
