@@ -85,7 +85,13 @@
 	(bodies (list-of expression?))]
   [or-exp
 	(bodies (list-of expression?))]
-  
+;  [case-exp
+;	(test (lambda (x) (or (symbol? x) (number? x) (pair? x))))
+;	(lists (lambda (x) (or (symbol? x) (number? x) (pair? x))))
+;	(bodies (list-of expression?))]
+  [while-exp
+	(test expression?)
+	(body (list-of expression?))]
   [lambda-exp-improper
 	(params improper-checker)
 	(body (list-of expression?))]
@@ -171,12 +177,13 @@
 		[(eqv? (car datum) 'or)
 			(or-exp (map parse-exp (cdr datum)))]
 ;		[(eqv? (car datum) 'case)
-;			(and-exp (map parse-exp (cdr datum)))]
+;			(case-exp (cadr datum) (map car (cddr datum)) (map parse-exp (map cadr (cddr datum))))]
 		[(eqv? (car datum) 'begin)
 			(begin-exp (map parse-exp (cdr datum)))]
 		[(eqv? (car datum) 'cond)
 			(cond-exp (map parse-exp (map car (cdr datum))) (map parse-exp (map cadr (cdr datum))))]
-		
+		[(eqv? (car datum) 'while)
+			(while-exp (parse-exp (cadr datum)) (map parse-exp (cddr datum)))]
        [else (app-exp (parse-exp (1st datum))
 		      (map parse-exp (cdr datum)))])]
      [else (eopl:error 'parse-exp "bad expression: ~s" datum)])))
@@ -324,8 +331,25 @@
 			(and-expand (map syntax-expand bodies))]
 		[or-exp (bodies)
 			(or-expand (map syntax-expand bodies))]
+;		[case-exp (test lists bodies)
+;			(case-expand test lists bodies)]
+		[while-exp (test body)
+                 (while-exp (syntax-expand test)
+                            (map syntax-expand body))]
 		[else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]
 	)))
+	
+;(define case-expand
+;	(lambda (test lists bodies)
+;		(let-exp '(x) test (lists-bodies->if lists bodies))))
+		
+;(define lists-bodies->if
+;	(lambda (lists bodies)
+;		(if (null? (cdr lists))
+;			(let loop ([ls (car lists)] [body (car bodies)])
+;				(if-exp (
+;			(list-body->if (car lists) (car bodies))
+;			(list-body->if (car lists) (car bodies)))))
 	
 (define or-expand
 	(lambda (bodies)
@@ -418,8 +442,17 @@
 ;			(extend-env-recursively 
 ;				proc-names idss bodies env))]
 	  [quote-exp (arg) arg]
+	  [while-exp (test body)
+		(let loop ((cond (eval-exp test env)))
+                   (if cond
+                       (let loop2 ((bodies body))
+                         (if (null? bodies)
+                             (loop (eval-exp test env))
+                             (begin (eval-exp (car bodies) env)
+                                    (loop2 (cdr bodies)))))))]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
-	  
+	
+	
 (define run-multiple-lambda-bodys
 	(lambda (closure params bodys env)
 		(if (null? (cdr bodys))
@@ -456,7 +489,7 @@
 					
 ;(trace apply-proc)
 
-(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply))
+(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply quotient))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
@@ -486,6 +519,7 @@
  [(>=) (or (apply > args) (apply = args))]  [(=) (= (1st args) (2nd args))]
  [(zero?) (= (1st args) 0)] [(null?) (null? (1st args))]
  [(eq?) (eq? (1st args) (2nd args))]  [(equal?) (equal? (1st args) (2nd args))]
+ [(quotient) (quotient (1st args) (1st args))]
  [(set-car!) (set-car! (1st args) (2nd args))]
  [(set-cdr!) (set-cdr! (1st args) (2nd args))]
  [(procedure?) (proc-val? (1st args))]
@@ -526,8 +560,8 @@
 (define eval-one-exp
   (lambda (x) (top-level-eval (syntax-expand (parse-exp x)))))
 
-(trace syntax-expand)
-(trace parse-exp)
-(trace eval-exp)
+;(trace syntax-expand)
+;(trace parse-exp)
+;(trace eval-exp)
 
 
