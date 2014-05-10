@@ -79,17 +79,16 @@
   [cond-exp
 	(tests (list-of expression?))
 	(bodies (list-of expression?))]
-;  [and-exp
-;	(body (list-of expression?))]
+  [begin-exp
+	(bodies (list-of expression?))]
+  [and-exp
+	(bodies (list-of expression?))]
+  [or-exp
+	(bodies (list-of expression?))]
   
   [lambda-exp-improper
 	(params improper-checker)
 	(body (list-of expression?))]
-
-	
-  [or-exp
-    (body (list-of expression?))]
-
 	
   [quote-exp
 	(arg scheme-value?)]
@@ -167,14 +166,14 @@
 		   
 		   ;;;;;;;;;;;;;;;;;;;;;;;
 		   
-;		[(eqv? (car datum) 'and)
-;			(and-exp (map parse-exp (cdr datum)))]
-;		[(eqv? (car datum) 'or)
-;			(and-exp (map parse-exp (cdr datum)))]
+		[(eqv? (car datum) 'and)
+			(and-exp (map parse-exp (cdr datum)))]
+		[(eqv? (car datum) 'or)
+			(or-exp (map parse-exp (cdr datum)))]
 ;		[(eqv? (car datum) 'case)
 ;			(and-exp (map parse-exp (cdr datum)))]
-;		[(eqv? (car datum) 'begin)
-;			(and-exp (map parse-exp (cdr datum)))]
+		[(eqv? (car datum) 'begin)
+			(begin-exp (map parse-exp (cdr datum)))]
 		[(eqv? (car datum) 'cond)
 			(cond-exp (map parse-exp (map car (cdr datum))) (map parse-exp (map cadr (cdr datum))))]
 		
@@ -182,33 +181,6 @@
 		      (map parse-exp (cdr datum)))])]
      [else (eopl:error 'parse-exp "bad expression: ~s" datum)])))
 	 
-(trace parse-exp)
-	 
-(define cond-test-getter
-	(lambda (expression)
-		(if (null? expression)
-			'()
-		(cons (caar expression) (cond-test-getter (cdr expression))))))
-		
-(define cond-body-getter
-	(lambda (expression)
-		(if (null? expression)
-			'()
-		(cons (cadar expression) (cond-body-getter (cdr expression))))))
-		
-(define cond-expand
-	(lambda (cond-expression)
-		(cond-expand-helper (cond-test-getter (cdr cond-expression)) (cond-body-getter (cdr cond-expression)))))
-		
-(define cond-expand-helper
-	(lambda (test-list body-list)
-		(if (null? (cdr test-list))
-			(if (eqv? (car test-list) 'else)
-				(car body-list)
-		(list 'if (car test-list) (car body-list)))
-		(list 'if (car test-list) (car body-list)
-				  (cond-expand-helper (cdr test-list) (cdr body-list)))
-		)))
 	 
 (define contains-non-variable
 	(lambda (list1)
@@ -325,14 +297,13 @@
 ; case
 (define syntax-expand
   (lambda (exp)
-  
 	(cases expression exp
 		[lit-exp (datum) exp]
 		[var-exp (id) exp]
 		[app-exp (rator rands)
 			(app-exp (syntax-expand rator) (map syntax-expand rands))]
 		[let-exp (syms exprs bodies)
-			(let-exp syms (syntax-expand exprs) (syntax-expand bodies))]
+			(let-exp syms (map syntax-expand exprs) (map syntax-expand bodies))]
 		[if-exp (test-exp then-exp else-exp)
 			(if-exp (syntax-expand test-exp)
 					(syntax-expand then-exp)
@@ -341,23 +312,43 @@
 			(if-2-exp (syntax-expand test-exp)
 					(syntax-expand then-exp))]
 		[lambda-exp (params bodys)
-			(lambda-exp id (map syntax-expand bodys))]
+			(lambda-exp params (map syntax-expand bodys))]
 		[lambda-exp-parenless (params bodys)
-			(lambda-exp id (map syntax-expand bodys))]
+			(lambda-exp-parenless params (map syntax-expand bodys))]
 		[quote-exp (arg) exp]
 		[cond-exp (tests bodies)
 			(cond-expand tests bodies)]
+		[begin-exp (bodies)
+			(lambda-exp '() (map syntax-expand bodies))]
+		[and-exp (bodies)
+			(and-expand (map syntax-expand bodies))]
+		[or-exp (bodies)
+			(or-expand (map syntax-expand bodies))]
 		[else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]
 	)))
+	
+(define or-expand
+	(lambda (bodies)
+	 (if (null? bodies) (lit-exp #f)
+		(if (null? (cdr bodies))
+			(if-exp (syntax-expand (car bodies)) (syntax-expand (car bodies)) (lit-exp '#f))
+			(if-exp (syntax-expand (car bodies)) (syntax-expand (car bodies)) (or-expand (cdr bodies)))))))
+
+(define and-expand
+	(lambda (bodies)
+	 (if (null? bodies) (lit-exp #t)
+		(if (null? (cdr bodies))
+			(if-exp (syntax-expand (car bodies)) (syntax-expand (car bodies)) (lit-exp '#f))
+			(if-exp (syntax-expand (car bodies)) (and-expand (cdr bodies)) (lit-exp '#f))))))
 
 (define cond-expand
 	(lambda (tests bodies)
 		(if (null? (cdr tests))
-			(if (eqv? (car tests) 'else)
+			(if (equal? (car tests) (var-exp 'else))
 				(syntax-expand (car bodies))
-				(if-2-exp (car tests) (car bodies)))
+				(if-2-exp (syntax-expand (car tests)) (syntax-expand (car bodies))))
 			(if-exp (syntax-expand (car tests)) (syntax-expand (car bodies)) (cond-expand (cdr tests) (cdr bodies))))))
-
+			
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
@@ -436,9 +427,6 @@
 			(begin
 			(closure params (car bodys) env)
 			(run-multiple-lambda-bodys closure params (cdr bodys) env)))))
-			
-;(trace run-multiple-lambda-bodys)
-
 
 (define eval-rands
   (lambda (rands env)
@@ -536,8 +524,9 @@
       (rep))))  ; tail-recursive, so stack doesn't grow.
 
 (define eval-one-exp
-  (lambda (x) (top-level-eval (parse-exp x))))
+  (lambda (x) (top-level-eval (syntax-expand (parse-exp x)))))
 
+(trace syntax-expand)
 (trace parse-exp)
 (trace eval-exp)
 
