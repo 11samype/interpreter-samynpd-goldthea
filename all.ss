@@ -318,18 +318,19 @@
 		[lambda-exp (params bodys)
 			(lambda-exp params (map syntax-expand bodys))]
 		[lambda-exp-parenless (params bodys)
-
 			(lambda-exp-parenless params (map syntax-expand bodys))]
+		[lambda-exp-improper (params bodys)
+			(lambda-exp-improper params (map syntax-expand bodys))]
 		[quote-exp (arg) exp]
 		[cond-exp (tests bodies)
 			(cond-expand tests bodies)]
 		[begin-exp (bodies)
-			(lambda-exp '() (map syntax-expand bodies))]
+			(app-exp (lambda-exp '() (map syntax-expand bodies)) '())]
 		[and-exp (bodies)
 			(and-expand (map syntax-expand bodies))]
 		[or-exp (bodies)
 			(or-expand (map syntax-expand bodies))]
-		[else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]
+		[else (eopl:error 'syntax-expand "Bad abstract syntax: ~a" exp)]
 	)))
 	
 (define or-expand
@@ -426,14 +427,6 @@
 ;				proc-names idss bodies env))]
 	  [quote-exp (arg) arg]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
-	  
-(define run-multiple-lambda-bodys
-	(lambda (closure params bodys env)
-		(if (null? (cdr bodys))
-			(closure params (car bodys) env)
-			(begin
-			(closure params (car bodys) env)
-			(run-multiple-lambda-bodys closure params (cdr bodys) env)))))
 
 (define eval-rands
   (lambda (rands env)
@@ -463,23 +456,16 @@
 	
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
-                    proc-value)])))
-					
+           		   proc-value)])))
+			
 (define extend-n
 	(lambda (length1 value)
 		(if (zero? length1)
 		'()
 	(cons value (extend-n (- length1 1) value)))))
-					
-(define multi-body-helper
-	(lambda (bodys extended-env)
-		(if (null? (cdr bodys))
-			(eval-exp bodys extended-env)
-		(begin (eval-exp (car bodys) extended-env)
-			   (multi-body-helper function (cdr bodys) extended-env)))))
 ;(trace apply-proc)
 
-(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply))
+(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply vector-set!))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
@@ -511,6 +497,7 @@
  [(eq?) (eq? (1st args) (2nd args))]  [(equal?) (equal? (1st args) (2nd args))]
  [(set-car!) (set-car! (1st args) (2nd args))]
  [(set-cdr!) (set-cdr! (1st args) (2nd args))]
+ [(vector-set!) (vector-set! (1st args) (2nd args) (3rd args))]
  [(procedure?) (proc-val? (1st args))]
 	  [(map) (cases proc-val (1st args)
 				[prim-proc (op)
