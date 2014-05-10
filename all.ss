@@ -12,18 +12,18 @@
 (define-datatype environment environment?
   (empty-env-record)
   (extended-env-record
-   (syms (list-of symbol?))
+   (syms improper-or-regular)
    (vals (list-of scheme-value?))
    (env environment?)))
    
   
-;  (define improper-checker
-;	(lambda (x)
-;		(and (not (list? x)) (pair? x))))
-;		
- ; (define improper-or-regular
-	;(lambda (x)
-	;	(or ((list-of symbol?) x) (improper-checker x))))
+  (define improper-checker
+	(lambda (x)
+		(and (not (list? x)) (pair? x))))
+		
+  (define improper-or-regular
+	(lambda (x)
+		(or ((list-of symbol?) x) (improper-checker x))))
    
 
  ; datatype for procedures.  At first there is only one
@@ -33,13 +33,17 @@
   [prim-proc
    (name symbol?)]
   [closure (params symbol-or-list?)
-			(body expression?)
+			(body expression-or-list)
 			(env environment?)]
 	)
  
  (define symbol-or-list?
 	(lambda (x)
 		(or (symbol? x) (list-of symbol? x))))
+
+ (define expression-or-list
+	(lambda (x)
+		(or (expression? x) ((list-of expression?) x)))) 
 ;; Parsed expression datatypes
 
 (define-datatype expression expression?
@@ -322,11 +326,13 @@
 			(lambda-exp params (map syntax-expand bodys))]
 		[lambda-exp-parenless (params bodys)
 			(lambda-exp-parenless params (map syntax-expand bodys))]
+		[lambda-exp-improper (params bodys)
+			(lambda-exp-improper params (map syntax-expand bodys))]
 		[quote-exp (arg) exp]
 		[cond-exp (tests bodies)
 			(cond-expand tests bodies)]
 		[begin-exp (bodies)
-			(lambda-exp '() (map syntax-expand bodies))]
+			(app-exp (lambda-exp '() (map syntax-expand bodies)) '())]
 		[and-exp (bodies)
 			(and-expand (map syntax-expand bodies))]
 		[or-exp (bodies)
@@ -336,7 +342,7 @@
 		[while-exp (test body)
                  (while-exp (syntax-expand test)
                             (map syntax-expand body))]
-		[else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]
+		[else (eopl:error 'syntax-expand "Bad abstract syntax: ~a" exp)]
 	)))
 	
 ;(define case-expand
@@ -432,9 +438,11 @@
 		(if (eval-exp test-exp env)
 			(eval-exp then-exp env))]
 	  [lambda-exp (params bodys)
-		(run-multiple-lambda-bodys closure params bodys env)]
+		(closure params bodys env)]
 	  [lambda-exp-parenless (params bodys)
-	    (run-multiple-lambda-bodys closure params bodys env)]
+	    (closure params bodys env)]
+	  [lambda-exp-improper (params bodys)
+	    (closure params bodys env)]
 
 ;	  [letrec-exp 
 ;		(proc-names idss bodies letrec-body)
@@ -451,15 +459,6 @@
                              (begin (eval-exp (car bodies) env)
                                     (loop2 (cdr bodies)))))))]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
-	
-	
-(define run-multiple-lambda-bodys
-	(lambda (closure params bodys env)
-		(if (null? (cdr bodys))
-			(closure params (car bodys) env)
-			(begin
-			(closure params (car bodys) env)
-			(run-multiple-lambda-bodys closure params (cdr bodys) env)))))
 
 (define eval-rands
   (lambda (rands env)
@@ -475,21 +474,30 @@
     (cases proc-val proc-value
       [prim-proc (op) (apply-prim-proc op args)]
 	  
-	  [closure (params body env)
+	  [closure (params bodys env)
 		(if (symbol? params)
 			(let ([extended-env (extend-env (list params)  (list args) env)])
-				(eval-exp body extended-env))
-		(let ([extended-env (extend-env params  args env)])
-			(eval-exp body extended-env)))]
+				(car (map eval-exp (reverse bodys) (extend-n (length bodys) extended-env))))
+		(if (improper-checker params)
+			(let ([extended-env (extend-env params  (list args) env)])
+				(car (map eval-exp (reverse bodys) (extend-n (length bodys) extended-env))))
+		(let ([extended-env (extend-env params args env)])
+			(car (map eval-exp (reverse bodys) (extend-n (length bodys) extended-env))))))]
 
+; map (eval-exp bodys) 
 	
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
-                    proc-value)])))
-					
+           		   proc-value)])))
+			
+(define extend-n
+	(lambda (length1 value)
+		(if (zero? length1)
+		'()
+	(cons value (extend-n (- length1 1) value)))))
 ;(trace apply-proc)
 
-(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply quotient))
+(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply quotient vector-set!))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
@@ -522,6 +530,7 @@
  [(quotient) (quotient (1st args) (1st args))]
  [(set-car!) (set-car! (1st args) (2nd args))]
  [(set-cdr!) (set-cdr! (1st args) (2nd args))]
+ [(vector-set!) (vector-set! (1st args) (2nd args) (3rd args))]
  [(procedure?) (proc-val? (1st args))]
 	  [(map) (cases proc-val (1st args)
 				[prim-proc (op)
