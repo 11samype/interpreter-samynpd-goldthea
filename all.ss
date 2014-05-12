@@ -10,11 +10,16 @@
   (lambda (x) #t))
 
 (define-datatype environment environment?
-  (empty-env-record)
-  (extended-env-record
+  [empty-env-record]
+  [extended-env-record
    (syms improper-or-regular)
    (vals (list-of scheme-value?))
-   (env environment?)))
+   (env environment?)]
+  [recursively-extended-env-record
+   (proc-names (list-of symbol?))
+   (idss (list-of (list-of symbol?)))
+   (bodies (list-of expression?))
+   (env environment?)])
    
   
   (define improper-checker
@@ -24,7 +29,6 @@
   (define improper-or-regular
 	(lambda (x)
 		(or ((list-of symbol?) x) (improper-checker x))))
-   
 
  ; datatype for procedures.  At first there is only one
 ; kind of procedure, but more kinds will be added later.
@@ -89,17 +93,16 @@
 	(bodies (list-of expression?))]
   [or-exp
 	(bodies (list-of expression?))]
-;  [case-exp
-;	(test (lambda (x) (or (symbol? x) (number? x) (pair? x))))
-;	(lists (lambda (x) (or (symbol? x) (number? x) (pair? x))))
-;	(bodies (list-of expression?))]
+  [case-exp
+	(test (lambda (x) (or (symbol? x) (number? x) (pair? x))))
+	(lists (lambda (x) (or (symbol? x) (number? x) (pair? x))))
+	(bodies (list-of expression?))]
   [while-exp
 	(test expression?)
 	(body (list-of expression?))]
   [lambda-exp-improper
 	(params improper-checker)
 	(body (list-of expression?))]
-	
   [quote-exp
 	(arg scheme-value?)]
   )
@@ -292,7 +295,47 @@
 		(let ([pos (list-find-position sym syms)])
       	  (if (number? pos)
 	      (succeed (list-ref vals pos))
-	      (apply-env env sym succeed fail)))])))
+	      (apply-env env sym succeed fail)))]
+	  [recursively-extended-env-record
+		(procnames idss bodies old-env)
+		(let ([pos 
+			(list-find-position sym procnames)])
+		 (if (number? pos)
+			(closure (list-ref idss pos)
+						(list-ref bodies pos)
+						env)
+			(apply-env old-env sym)))])))
+			
+(define extend-env-recursively
+	(lambda (proc-names idss bodies old-env)
+		(recursively-extended-env-record 
+			proc-names idss bodies old-env)))
+
+;(define extend-env-recursively
+;	(lambda (proc-names idss bodies old-env)
+;		(let ([len (langth proc-names)])
+;			(let ([vec (make-vector len)])
+;				(let ([env (extended-env-record
+;							proc-name vec old-env)])
+;					(for-each
+;						(lambda (pos ids body)
+;							(vector-set! vec
+;										pos
+;										(closure ids body env)))
+;						(iota len)
+;						idss
+;						bodies
+;						)
+;					env)))))
+				
+(define iota
+	(lambda (len)
+		(reverse (iota-helper len))))
+				
+(define iota-helper
+	(lambda (len)
+		(cond [(zero? len) '()]
+			[else (cons (- len 1) (iota-helper (- len 1)))])))
 
 ;-----------------------+
 ;                       |
@@ -337,8 +380,8 @@
 			(and-expand (map syntax-expand bodies))]
 		[or-exp (bodies)
 			(or-expand (map syntax-expand bodies))]
-;		[case-exp (test lists bodies)
-;			(case-expand test lists bodies)]
+		[case-exp (test lists bodies)
+			(case-expand test lists bodies (empty-env))]
 		[while-exp (test body)
                  (while-exp (syntax-expand test)
                             (map syntax-expand body))]
@@ -356,6 +399,14 @@
 ;				(if-exp (
 ;			(list-body->if (car lists) (car bodies))
 ;			(list-body->if (car lists) (car bodies)))))
+			
+(define case-expand
+  (lambda (test lists bodies env)
+    (cond [(null? lists) '()]
+          [(equal? 'else (car lists))
+           (car bodies)]
+          [(contains? (eval-exp (parse-exp test) env) (car lists)) (car bodies)]
+          [else (case-expand test (cdr lists) (cdr bodies) env)])))
 	
 (define or-expand
 	(lambda (bodies)
@@ -444,17 +495,17 @@
 	  [lambda-exp-improper (params bodys)
 	    (closure params bodys env)]
 
-;	  [letrec-exp 
-;		(proc-names idss bodies letrec-body)
-;		(eval-exp letrec-body
-;			(extend-env-recursively 
-;				proc-names idss bodies env))]
+	  [letrec-exp 
+		(proc-names idss bodies letrec-body)
+		(eval-exp letrec-body
+			(extend-env-recursively 
+				proc-names idss bodies env))]
 	  [quote-exp (arg) arg]
 	  [while-exp (test body)
-		(let loop ((cond (eval-exp test env)))
-                   (if cond
+		(let loop ([cond (eval-exp test env)])
+				   (if cond
                        (let loop2 ((bodies body))
-                         (if (null? bodies)
+						 (if (null? bodies)
                              (loop (eval-exp test env))
                              (begin (eval-exp (car bodies) env)
                                     (loop2 (cdr bodies)))))))]
@@ -569,8 +620,8 @@
 (define eval-one-exp
   (lambda (x) (top-level-eval (syntax-expand (parse-exp x)))))
 
-;(trace syntax-expand)
-;(trace parse-exp)
-;(trace eval-exp)
+(trace syntax-expand)
+(trace parse-exp)
+(trace eval-exp)
 
 
