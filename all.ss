@@ -530,7 +530,7 @@
 			(let ([extended-env (extend-env (list params)  (list args) env)])
 				(car (map eval-exp (reverse bodys) (extend-n (length bodys) extended-env))))
 		(if (improper-checker params)
-			(let ([extended-env (extend-env params  (list args) env)])
+			(let ([extended-env (extend-env params  (improper-list-remover args) env)])
 				(car (map eval-exp (reverse bodys) (extend-n (length bodys) extended-env))))
 		(let ([extended-env (extend-env params args env)])
 			(car (map eval-exp (reverse bodys) (extend-n (length bodys) extended-env))))))]
@@ -540,6 +540,12 @@
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
            		   proc-value)])))
+				   
+(define improper-list-remover
+	(lambda (list1)
+		(if (symbol? list1)
+			(cons list1 '())
+		(cons (car list1) (improper-list-remover (cdr list1))))))
 			
 (define extend-n
 	(lambda (length1 value)
