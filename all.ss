@@ -64,7 +64,7 @@
    (rands (list-of expression?))]
   [letrec-exp
 	(proc-names (list-of symbol?))
-	(idss (list-f (list-of symbol?)))
+	(idss (list-of (list-of symbol?)))
 	(bodies (list-of expression?))
 	(letrec-body expression?)]
   [if-exp 
@@ -137,6 +137,11 @@
 	    [(and (eqv? (car datum) 'let)
 			  (validate-let datum))
 		   (let-exp ;(car datum)
+			 (map car (cadr datum))
+			 (map parse-exp (map cadr (cadr datum)))
+			 (map parse-exp (cddr datum)))]
+		[(eqv? (car datum) 'letrec)
+			(letrec-exp ;(car datum)
 			 (map car (cadr datum))
 			 (map parse-exp (map cadr (cadr datum)))
 			 (map parse-exp (cddr datum)))]
@@ -298,13 +303,13 @@
 	      (apply-env env sym succeed fail)))]
 	  [recursively-extended-env-record
 		(procnames idss bodies old-env)
-		(let ([pos 
+		(let ([pos
 			(list-find-position sym procnames)])
 		 (if (number? pos)
 			(closure (list-ref idss pos)
 						(list-ref bodies pos)
 						env)
-			(apply-env old-env sym)))])))
+			(apply-env old-env sym succeed fail)))])))
 			
 (define extend-env-recursively
 	(lambda (proc-names idss bodies old-env)
@@ -458,10 +463,6 @@
 		[var-exp (id) ; look up its value.
 			(apply-env env id
 				identity-proc ; procedure to call if var is in env
-;					(lambda () ; procedure to call if var is not in env
-;						(apply-env global-env ; was init-env
-;							id
-;							identity-proc
 							(lambda () 
 								(error 'apply-env
 										"variable ~s is not bound" 
