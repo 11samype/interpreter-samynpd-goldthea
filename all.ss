@@ -16,10 +16,10 @@
    (vals (list-of scheme-value?))
    (env environment?)]
   [recursively-extended-env-record
-   (proc-names (list-of symbol?))
+   (procnames (list-of symbol?))
    (idss (list-of (list-of symbol?)))
    (bodies (list-of expression?))
-   (env environment?)])
+   (old-env environment?)])
    
   
   (define improper-checker
@@ -64,8 +64,8 @@
    (rands (list-of expression?))]
   [letrec-exp
 	(proc-names (list-of symbol?))
-	(idss (list-of (list-of symbol?)))
-	(bodies (list-of expression?))
+	(proc-args (list-of (list-of symbol?)))
+	(proc-bodies (list-of expression?))
 	(letrec-body expression?)]
   [if-exp 
 	(test-exp expression?)
@@ -142,9 +142,11 @@
 			 (map parse-exp (cddr datum)))]
 		[(eqv? (car datum) 'letrec)
 			(letrec-exp ;(car datum)
-			 (map car (cadr datum))
-			 (map parse-exp (map cadr (cadr datum)))
-			 (map parse-exp (cddr datum)))]
+			 (map car (cadr datum)) ; proc-names
+			 (map cadr (map cadr (cadr datum))) ; proc-args
+			 (map parse-exp (map cadr (cadr datum))) ; proc-bodies
+			 (parse-exp (cddr datum))) ; letrec-body
+			 ]
 		[(eqv? (car datum) 'quote) (if (= (length datum) 2)
                                       (quote-exp (cadr datum))
                                       (eopl:error 'parse-exp "bad quote: ~s" datum))]
@@ -363,6 +365,12 @@
 			(app-exp (syntax-expand rator) (map syntax-expand rands))]
 		[let-exp (syms exprs bodies)
 			(let-exp syms (map syntax-expand exprs) (map syntax-expand bodies))]
+			
+		[letrec-exp (proc-names proc-args proc-bodies letrec-body)
+			(letrec-exp proc-names
+						proc-args
+						(map syntax-expand proc-bodies)
+						(syntax-expand letrec-body))]
 		[if-exp (test-exp then-exp else-exp)
 			(if-exp (syntax-expand test-exp)
 					(syntax-expand then-exp)
@@ -370,12 +378,12 @@
 		[if-2-exp (test-exp then-exp)
 			(if-2-exp (syntax-expand test-exp)
 					(syntax-expand then-exp))]
-		[lambda-exp (params bodys)
-			(lambda-exp params (map syntax-expand bodys))]
-		[lambda-exp-parenless (params bodys)
-			(lambda-exp-parenless params (map syntax-expand bodys))]
-		[lambda-exp-improper (params bodys)
-			(lambda-exp-improper params (map syntax-expand bodys))]
+		[lambda-exp (params bodies)
+			(lambda-exp params (map syntax-expand bodies))]
+		[lambda-exp-parenless (params bodies)
+			(lambda-exp-parenless params (map syntax-expand bodies))]
+		[lambda-exp-improper (params bodies)
+			(lambda-exp-improper params (map syntax-expand bodies))]
 		[quote-exp (arg) exp]
 		[cond-exp (tests bodies)
 			(cond-expand tests bodies)]
@@ -489,18 +497,17 @@
 	  [if-2-exp (test-exp then-exp)
 		(if (eval-exp test-exp env)
 			(eval-exp then-exp env))]
-	  [lambda-exp (params bodys)
-		(closure params bodys env)]
-	  [lambda-exp-parenless (params bodys)
-	    (closure params bodys env)]
-	  [lambda-exp-improper (params bodys)
-	    (closure params bodys env)]
-
+	  [lambda-exp (params bodies)
+		(closure params bodies env)]
+	  [lambda-exp-parenless (params bodies)
+	    (closure params bodies env)]
+	  [lambda-exp-improper (params bodies)
+	    (closure params bodies env)]
 	  [letrec-exp 
-		(proc-names idss bodies letrec-body)
+		(proc-names proc-args proc-bodies letrec-body)
 		(eval-exp letrec-body
 			(extend-env-recursively 
-				proc-names idss bodies env))]
+				proc-names proc-args proc-bodies env))]
 	  [quote-exp (arg) arg]
 	  [while-exp (test body)
 		(let loop ([cond (eval-exp test env)])
@@ -526,17 +533,17 @@
     (cases proc-val proc-value
       [prim-proc (op) (apply-prim-proc op args)]
 	  
-	  [closure (params bodys env)
+	  [closure (params bodies env)
 		(if (symbol? params)
 			(let ([extended-env (extend-env (list params)  (list args) env)])
-				(car (map eval-exp (reverse bodys) (extend-n (length bodys) extended-env))))
+				(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))
 		(if (improper-checker params)
 			(let ([extended-env (extend-env params  (improper-list-remover args) env)])
-				(car (map eval-exp (reverse bodys) (extend-n (length bodys) extended-env))))
+				(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))
 		(let ([extended-env (extend-env params args env)])
-			(car (map eval-exp (reverse bodys) (extend-n (length bodys) extended-env))))))]
+			(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))))]
 
-; map (eval-exp bodys) 
+; map (eval-exp bodies) 
 	
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
@@ -599,8 +606,9 @@
 				[closure (params body env)
 					(if (null? (cadr args))
 						'()
-						(cons (apply-prim-proc (1st args) (list (caadr args)))
-							 (apply-prim-proc 'map (list (1st args) (cdadr args)))))])]
+						(cons (apply-proc (1st args) (list (caadr args)))
+							 (apply-prim-proc 'map (list (1st args) (cdadr args)))))
+							 ])]
 	  [(apply) (cases proc-val (1st args)
 				[prim-proc (op)
 					(apply-prim-proc op (apply-helper-all-list (cdr args)))]
@@ -608,7 +616,7 @@
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-proc)])))
-			
+(trace apply-prim-proc)
 (define apply-helper-all-list
 	(lambda (args)
 		(cond [(null? args) '()]
