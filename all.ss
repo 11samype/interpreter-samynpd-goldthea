@@ -105,24 +105,29 @@
 	(body (list-of expression?))]
   [quote-exp
 	(arg scheme-value?)]
+	
+  [named-let-exp
+	(proc-name symbol?)
+	(args-names (list-of symbol?))
+	(arg-bodies (list-of expression?))
+	(real-body expression?)
   )
-
 ;-------------------+
 ;                   |
 ;    PARSER         |
 ;                   |
 ;-------------------+
 
-
 ; This is a parser for simple Scheme expressions, such as those in EOPL, 3.1 thru 3.3.
 
-; You will want to replace this with your parser that includes more expression types, more options for these types, and error-checking.
-
-; Procedures to make the parser a little bit saner.
 (define 1st car)
 (define 2nd cadr)
 (define 3rd caddr)
-
+; for letrec
+	; 1st after letrec = proc name
+	; 2nd after letrec = proc args
+	; 3rd after letrec = inside the lambdas
+	; expand proc bodies and arg bodies
 (define parse-exp
   (lambda (datum)
     (cond
@@ -134,6 +139,15 @@
           (null? datum)) (lit-exp datum)]
      [(pair? datum)
       (cond
+		[(and (eqv? (car datum) 'let) (eqv? symbol? (cadr datum)))
+		; named let
+		(named-let-exp
+			(cadr datum)
+			(map car (caddr datum))
+			(map parse-exp (map cdr (caddr datum)))
+			(parse-exp (cdddr datum)))]
+		
+		
 	    [(and (eqv? (car datum) 'let)
 			  (validate-let datum))
 		   (let-exp ;(car datum)
@@ -311,6 +325,15 @@
 						env)
 			(apply-env old-env sym succeed fail)))])))
 			
+; rename letrec again
+
+; in evaluate
+; apply each of the letrec bodies in order
+; extend-env-recursively
+; apply proc
+; in apply environment, handle it being a recursively-extended environment record
+; listref gets variable at position
+			
 (define extend-env-recursively
 	(lambda (proc-names idss bodies old-env)
 		(recursively-extended-env-record 
@@ -390,9 +413,17 @@
 		[while-exp (test body)
                  (while-exp (syntax-expand test)
                             (map syntax-expand body))]
+		[named-let-exp
 		[else (eopl:error 'syntax-expand "Bad abstract syntax: ~a" exp)]
 	)))
 	
+	
+;		(named-let-exp
+;			(cadr datum)
+;			(map car (caddr datum))
+;			(map parse-exp (map cdr (caddr datum)))
+;			(parse-exp (cdddr datum)))]
+			
 ;(define case-expand
 ;	(lambda (test lists bodies)
 ;		(let-exp '(x) test (lists-bodies->if lists bodies))))
@@ -496,6 +527,8 @@
 	  [lambda-exp-improper (params bodys)
 	    (closure params bodys env)]
 
+		;change idss to list of args
+		;change bodies to proc bodies
 	  [letrec-exp 
 		(proc-names idss bodies letrec-body)
 		(eval-exp letrec-body
