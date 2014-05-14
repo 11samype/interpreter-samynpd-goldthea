@@ -528,23 +528,32 @@
 ;  At this point, we only have primitive procedures.  
 ;  User-defined procedures will be added later.
 
+(define eval-begin
+	(lambda (ls env)
+		(if (null? (cdr ls))
+			(begin (eval-exp (car-ls) env))
+			(begin
+				(eval-exp (car ls) env)
+				(eval-begin (cdr ls) env)))))
+
 (define apply-proc
   (lambda (proc-value args)
     (cases proc-val proc-value
       [prim-proc (op) (apply-prim-proc op args)]
 	  
 	  [closure (params bodies env)
-		(if (symbol? params)
-			(let ([extended-env (extend-env (list params)  (list args) env)])
-				(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))
-		(if (improper-checker params)
-			(let ([extended-env (extend-env params  (improper-list-remover args) env)])
-				(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))
-		(let ([extended-env (extend-env params args env)])
-			(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))))]
+;		(if (symbol? params)
+;			(let ([extended-env (extend-env (list params)  (list args) env)])
+;				(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))
+;		(if (improper-checker params)
+;			(let ([extended-env (extend-env params  (improper-list-remover args) env)])
+;				(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))
+;		(let ([extended-env (extend-env params args env)])
+;			(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))))
 
-; map (eval-exp bodies) 
-	
+		(eval-begin bodies (extend-env params args env))
+
+	  ]
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
            		   proc-value)])))
@@ -560,7 +569,7 @@
 		(if (zero? length1)
 		'()
 	(cons value (extend-n (- length1 1) value)))))
-;(trace apply-proc)
+(trace apply-proc)
 
 (define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply quotient vector-set!))
 
@@ -616,7 +625,7 @@
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-proc)])))
-(trace apply-prim-proc)
+
 (define apply-helper-all-list
 	(lambda (args)
 		(cond [(null? args) '()]
