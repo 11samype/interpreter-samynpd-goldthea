@@ -105,24 +105,29 @@
 	(body (list-of expression?))]
   [quote-exp
 	(arg scheme-value?)]
+	
+  [named-let-exp
+	(proc-name symbol?)
+	(args-names (list-of symbol?))
+	(arg-bodies (list-of expression?))
+	(real-body expression?)]
   )
-
 ;-------------------+
 ;                   |
 ;    PARSER         |
 ;                   |
 ;-------------------+
 
-
 ; This is a parser for simple Scheme expressions, such as those in EOPL, 3.1 thru 3.3.
 
-; You will want to replace this with your parser that includes more expression types, more options for these types, and error-checking.
-
-; Procedures to make the parser a little bit saner.
 (define 1st car)
 (define 2nd cadr)
 (define 3rd caddr)
-
+; for letrec
+	; 1st after letrec = proc name
+	; 2nd after letrec = proc args
+	; 3rd after letrec = inside the lambdas
+	; expand proc bodies and arg bodies
 (define parse-exp
   (lambda (datum)
     (cond
@@ -134,6 +139,15 @@
           (null? datum)) (lit-exp datum)]
      [(pair? datum)
       (cond
+		[(and (eqv? (car datum) 'let) (eqv? symbol? (cadr datum)))
+		; named let
+		(named-let-exp
+			(cadr datum)
+			(map car (caddr datum))
+			(map parse-exp (map cdr (caddr datum)))
+			(parse-exp (cdddr datum)))]
+		
+		
 	    [(and (eqv? (car datum) 'let)
 			  (validate-let datum))
 		   (let-exp ;(car datum)
@@ -145,7 +159,7 @@
 			 (map car (cadr datum)) ; proc-names
 			 (map cadr (map cadr (cadr datum))) ; proc-args
 			 (map parse-exp (map cadr (cadr datum))) ; proc-bodies
-			 (parse-exp (cddr datum))) ; letrec-body
+			 (parse-exp (caddr datum))) ; letrec-body
 			 ]
 		[(eqv? (car datum) 'quote) (if (= (length datum) 2)
                                       (quote-exp (cadr datum))
@@ -313,6 +327,15 @@
 						env)
 			(apply-env old-env sym succeed fail)))])))
 			
+; rename letrec again
+
+; in evaluate
+; apply each of the letrec bodies in order
+; extend-env-recursively
+; apply proc
+; in apply environment, handle it being a recursively-extended environment record
+; listref gets variable at position
+			
 (define extend-env-recursively
 	(lambda (proc-names idss bodies old-env)
 		(recursively-extended-env-record 
@@ -398,9 +421,17 @@
 		[while-exp (test body)
                  (while-exp (syntax-expand test)
                             (map syntax-expand body))]
+		
 		[else (eopl:error 'syntax-expand "Bad abstract syntax: ~a" exp)]
 	)))
 	
+	
+;		(named-let-exp
+;			(cadr datum)
+;			(map car (caddr datum))
+;			(map parse-exp (map cdr (caddr datum)))
+;			(parse-exp (cdddr datum)))]
+			
 ;(define case-expand
 ;	(lambda (test lists bodies)
 ;		(let-exp '(x) test (lists-bodies->if lists bodies))))
@@ -497,12 +528,13 @@
 	  [if-2-exp (test-exp then-exp)
 		(if (eval-exp test-exp env)
 			(eval-exp then-exp env))]
-	  [lambda-exp (params bodies)
-		(closure params bodies env)]
-	  [lambda-exp-parenless (params bodies)
-	    (closure params bodies env)]
-	  [lambda-exp-improper (params bodies)
-	    (closure params bodies env)]
+	  [lambda-exp (params bodys)
+		(closure params bodys env)]
+	  [lambda-exp-parenless (params bodys)
+	    (closure params bodys env)]
+	  [lambda-exp-improper (params bodys)
+	    (closure params bodys env)]
+
 	  [letrec-exp 
 		(proc-names proc-args proc-bodies letrec-body)
 		(eval-exp letrec-body
@@ -554,6 +586,7 @@
 		(eval-begin bodies (extend-env params args env))
 
 	  ]
+
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
            		   proc-value)])))
