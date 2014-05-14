@@ -66,7 +66,7 @@
 	(proc-names (list-of symbol?))
 	(proc-args (list-of (list-of symbol?)))
 	(proc-bodies (list-of expression?))
-	(letrec-body expression?)]
+	(letrec-body (list-of expression?))]
   [if-exp 
 	(test-exp expression?)
 	(then-exp expression?)
@@ -159,7 +159,7 @@
 			 (map car (cadr datum)) ; proc-names
 			 (map cadr (map cadr (cadr datum))) ; proc-args
 			 (map parse-exp (map cadr (cadr datum))) ; proc-bodies
-			 (parse-exp (caddr datum))) ; letrec-body
+			 (map parse-exp (cddr datum))) ; letrec-body
 			 ]
 		[(eqv? (car datum) 'quote) (if (= (length datum) 2)
                                       (quote-exp (cadr datum))
@@ -393,7 +393,7 @@
 			(letrec-exp proc-names
 						proc-args
 						(map syntax-expand proc-bodies)
-						(syntax-expand letrec-body))]
+						(map syntax-expand letrec-body))]
 		[if-exp (test-exp then-exp else-exp)
 			(if-exp (syntax-expand test-exp)
 					(syntax-expand then-exp)
@@ -563,7 +563,7 @@
 (define eval-begin
 	(lambda (ls env)
 		(if (null? (cdr ls))
-			(begin (eval-exp (car-ls) env))
+			(begin (eval-exp (car ls) env))
 			(begin
 				(eval-exp (car ls) env)
 				(eval-begin (cdr ls) env)))))
@@ -602,7 +602,6 @@
 		(if (zero? length1)
 		'()
 	(cons value (extend-n (- length1 1) value)))))
-(trace apply-proc)
 
 (define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply quotient vector-set!))
 
@@ -655,6 +654,7 @@
 				[prim-proc (op)
 					(apply-prim-proc op (apply-helper-all-list (cdr args)))]
 					[else +])]
+	  [(append) (append (1st args) (2nd args))]
       [else (error 'apply-prim-proc 
             "Bad primitive procedure name: ~s" 
             prim-proc)])))
