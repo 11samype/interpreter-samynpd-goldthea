@@ -537,9 +537,9 @@
 
 	  [letrec-exp 
 		(proc-names proc-args proc-bodies letrec-body)
-		(eval-exp letrec-body
+		(map (lambda (e) (eval-exp e
 			(extend-env-recursively 
-				proc-names proc-args proc-bodies env))]
+				proc-names proc-args proc-bodies env))) letrec-body)]
 	  [quote-exp (arg) arg]
 	  [while-exp (test body)
 		(let loop ([cond (eval-exp test env)])
