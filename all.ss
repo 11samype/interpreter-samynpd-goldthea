@@ -110,7 +110,7 @@
 	(proc-name symbol?)
 	(args-names (list-of symbol?))
 	(arg-bodies (list-of expression?))
-	(real-body expression?)
+	(real-body expression?)]
   )
 ;-------------------+
 ;                   |
@@ -159,7 +159,7 @@
 			 (map car (cadr datum)) ; proc-names
 			 (map cadr (map cadr (cadr datum))) ; proc-args
 			 (map parse-exp (map cadr (cadr datum))) ; proc-bodies
-			 (parse-exp (cddr datum))) ; letrec-body
+			 (parse-exp (caddr datum))) ; letrec-body
 			 ]
 		[(eqv? (car datum) 'quote) (if (= (length datum) 2)
                                       (quote-exp (cadr datum))
@@ -421,7 +421,7 @@
 		[while-exp (test body)
                  (while-exp (syntax-expand test)
                             (map syntax-expand body))]
-		[named-let-exp
+		
 		[else (eopl:error 'syntax-expand "Bad abstract syntax: ~a" exp)]
 	)))
 	
@@ -566,14 +566,7 @@
       [prim-proc (op) (apply-prim-proc op args)]
 	  
 	  [closure (params bodies env)
-		(if (symbol? params)
-			(let ([extended-env (extend-env (list params)  (list args) env)])
-				(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))
-		(if (improper-checker params)
-			(let ([extended-env (extend-env params  (improper-list-remover args) env)])
-				(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))
-		(let ([extended-env (extend-env params args env)])
-			(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))))]
+		(closure params bodies env)]
 
 ; map (eval-exp bodies) 
 	
