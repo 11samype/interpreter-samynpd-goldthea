@@ -66,7 +66,7 @@
 	(proc-names (list-of symbol?))
 	(proc-args (list-of (list-of symbol?)))
 	(proc-bodies (list-of expression?))
-	(letrec-body expression?)]
+	(letrec-body (list-of expression?))]
   [if-exp 
 	(test-exp expression?)
 	(then-exp expression?)
@@ -158,8 +158,8 @@
 			(letrec-exp ;(car datum)
 			 (map car (cadr datum)) ; proc-names
 			 (map cadr (map cadr (cadr datum))) ; proc-args
-			 (map parse-exp (map cadr (cadr datum))) ; proc-bodies
-			 (parse-exp (caddr datum))) ; letrec-body
+			 (map parse-exp (map caddr (map cadr (cadr datum)))) ; proc-bodies
+			 (map parse-exp (cddr datum))) ; letrec-body
 			 ]
 		[(eqv? (car datum) 'quote) (if (= (length datum) 2)
                                       (quote-exp (cadr datum))
@@ -323,7 +323,7 @@
 			(list-find-position sym procnames)])
 		 (if (number? pos)
 			(closure (list-ref idss pos)
-						(list-ref bodies pos)
+						(list (list-ref bodies pos))
 						env)
 			(apply-env old-env sym succeed fail)))])))
 			
@@ -387,7 +387,7 @@
 			(letrec-exp proc-names
 						proc-args
 						(map syntax-expand proc-bodies)
-						(syntax-expand letrec-body))]
+						(map syntax-expand letrec-body))]
 		[if-exp (test-exp then-exp else-exp)
 			(if-exp (syntax-expand test-exp)
 					(syntax-expand then-exp)
@@ -572,9 +572,9 @@
 
 	  [letrec-exp 
 		(proc-names proc-args proc-bodies letrec-body)
-		(eval-exp letrec-body
+		(car (map (lambda (e) (eval-exp e 
 			(extend-env-recursively 
-				proc-names proc-args proc-bodies env))]
+				proc-names proc-args proc-bodies env))) letrec-body))]
 	  [quote-exp (arg) arg]
 	  [while-exp (test body)
 		(let loop ([cond (eval-exp test env)])
@@ -637,9 +637,8 @@
 		(if (zero? length1)
 		'()
 	(cons value (extend-n (- length1 1) value)))))
-(trace apply-proc)
 
-(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply quotient vector-set!))
+(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply quotient vector-set! eqv? list-tail))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
@@ -690,8 +689,11 @@
 				[prim-proc (op)
 					(apply-prim-proc op (apply-helper-all-list (cdr args)))]
 					[else +])]
-      [else (error 'apply-prim-proc 
-            "Bad primitive procedure name: ~s" 
+	  [(append) (append (1st args) (2nd args))]
+	  [(eqv?) (eqv? (1st args) (2nd args))]
+	  [(list-tail) (list-tail (1st args) (2nd args))]
+      [else (error 'apply-prim-proc
+            "Bad primitive procedure name: ~s"
             prim-proc)])))
 
 (define apply-helper-all-list
@@ -711,7 +713,3 @@
 
 (define eval-one-exp
   (lambda (x) (top-level-eval (syntax-expand (parse-exp x)))))
-
-(trace syntax-expand)
-(trace parse-exp)
-(trace eval-exp)
