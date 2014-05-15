@@ -18,7 +18,7 @@
   [recursively-extended-env-record
    (procnames (list-of symbol?))
    (idss (list-of (list-of symbol?)))
-   (bodies (list-of expression?))
+   (bodies  (list-of expression?))
    (old-env environment?)])
    
   
@@ -108,9 +108,9 @@
 	
   [named-let-exp
 	(proc-name symbol?)
-	(args-names (list-of symbol?))
-	(arg-bodies (list-of expression?))
-	(real-body expression?)]
+	(arg-names (list-of symbol?))
+	(internal-bodies (list-of expression?))
+	(external-body (list-of expression?))]
   )
 ;-------------------+
 ;                   |
@@ -139,13 +139,13 @@
           (null? datum)) (lit-exp datum)]
      [(pair? datum)
       (cond
-		[(and (eqv? (car datum) 'let) (eqv? symbol? (cadr datum)))
+		[(and (eqv? (car datum) 'let) (symbol? (cadr datum)))
 		; named let
 		(named-let-exp
 			(cadr datum)
 			(map car (caddr datum))
-			(map parse-exp (map cdr (caddr datum)))
-			(parse-exp (cdddr datum)))]
+			(map parse-exp (map cadr (caddr datum)))
+			(list (parse-exp (cadddr datum))))]
 		
 		
 	    [(and (eqv? (car datum) 'let)
@@ -373,12 +373,6 @@
 ;                       |
 ;-----------------------+
 
-; needs:
-; and
-; or
-; begin
-; let*
-; case
 (define syntax-expand
   (lambda (exp)
 	(cases expression exp
@@ -421,16 +415,37 @@
 		[while-exp (test body)
                  (while-exp (syntax-expand test)
                             (map syntax-expand body))]
-		
+		[named-let-exp (proc-name arg-names internal-bodies external-body)
+		(named-let-expand proc-name arg-names internal-bodies external-body)]
 		[else (eopl:error 'syntax-expand "Bad abstract syntax: ~a" exp)]
 	)))
 	
-	
-;		(named-let-exp
-;			(cadr datum)
-;			(map car (caddr datum))
-;			(map parse-exp (map cdr (caddr datum)))
-;			(parse-exp (cdddr datum)))]
+(define named-let-expand
+	(lambda (proc-name arg-names internal-bodies external-body)
+	(display proc-name)
+	(display "\n")
+	(display arg-names)
+	(display "\n")
+	(display internal-bodies)
+	(display "\n")
+	(display external-body)
+	(display "\n")
+	(display "\n")
+		(letrec-exp (list proc-name)
+		
+					(list arg-names) 
+					
+					(list (lambda-exp arg-names  external-body))
+					
+					(app-exp (var-exp proc-name) internal-bodies))))
+					
+;(let proc-id ([arg-id1 init-expr1] [arg-id2 init-expr2] ...)
+;  body ...+
+; =
+;(letrec ([proc-id (lambda (arg-id1 arg-id2 ...)
+;                     body ...+)])
+;  (proc-id init-expr1 init-expr2 ...))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 			
 ;(define case-expand
 ;	(lambda (test lists bodies)
@@ -443,6 +458,26 @@
 ;				(if-exp (
 ;			(list-body->if (car lists) (car bodies))
 ;			(list-body->if (car lists) (car bodies)))))
+
+; TODO, the final piece of the puzzle
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;(let proc-id ([arg-id1 init-expr1] [arg-id2 init-expr2] ...)
+;  body ...+
+; =
+;(letrec ([proc-id (lambda (arg-id1 arg-id2 ...)
+;                     body ...+)])
+;  (proc-id init-expr1 init-expr2 ...))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;	(lambda (proc-name arg-ids init-expr external-body)
+;		(letrec-exp (list proc-name) (list arg-ids) (list init-expr) 
+			
+;  [letrec-exp
+;	(proc-names (list-of symbol?))
+;	(proc-args (list-of (list-of symbol?)))
+;	(proc-bodies (list-of expression?))
+;	(letrec-body expression?)]
 			
 (define case-expand
   (lambda (test lists bodies env)
@@ -563,7 +598,7 @@
 (define eval-begin
 	(lambda (ls env)
 		(if (null? (cdr ls))
-			(begin (eval-exp (car-ls) env))
+			(begin (eval-exp (car ls) env))
 			(begin
 				(eval-exp (car ls) env)
 				(eval-begin (cdr ls) env)))))
@@ -680,5 +715,3 @@
 (trace syntax-expand)
 (trace parse-exp)
 (trace eval-exp)
-
-
