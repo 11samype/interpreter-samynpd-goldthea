@@ -158,7 +158,7 @@
 			(letrec-exp ;(car datum)
 			 (map car (cadr datum)) ; proc-names
 			 (map cadr (map cadr (cadr datum))) ; proc-args
-			 (map parse-exp (map cadr (cadr datum))) ; proc-bodies
+			 (map parse-exp (map caddr (map cadr (cadr datum)))) ; proc-bodies
 			 (map parse-exp (cddr datum))) ; letrec-body
 			 ]
 		[(eqv? (car datum) 'quote) (if (= (length datum) 2)
@@ -323,7 +323,7 @@
 			(list-find-position sym procnames)])
 		 (if (number? pos)
 			(closure (list-ref idss pos)
-						(list-ref bodies pos)
+						(list (list-ref bodies pos))
 						env)
 			(apply-env old-env sym succeed fail)))])))
 			
@@ -537,9 +537,9 @@
 
 	  [letrec-exp 
 		(proc-names proc-args proc-bodies letrec-body)
-		(map (lambda (e) (eval-exp e
+		(car (map (lambda (e) (eval-exp e 
 			(extend-env-recursively 
-				proc-names proc-args proc-bodies env))) letrec-body)]
+				proc-names proc-args proc-bodies env))) letrec-body))]
 	  [quote-exp (arg) arg]
 	  [while-exp (test body)
 		(let loop ([cond (eval-exp test env)])
@@ -655,8 +655,8 @@
 					(apply-prim-proc op (apply-helper-all-list (cdr args)))]
 					[else +])]
 	  [(append) (append (1st args) (2nd args))]
-      [else (error 'apply-prim-proc 
-            "Bad primitive procedure name: ~s" 
+      [else (error 'apply-prim-proc
+            "Bad primitive procedure name: ~s"
             prim-proc)])))
 
 (define apply-helper-all-list
@@ -677,8 +677,9 @@
 (define eval-one-exp
   (lambda (x) (top-level-eval (syntax-expand (parse-exp x)))))
 
-(trace syntax-expand)
-(trace parse-exp)
-(trace eval-exp)
-
-
+;(trace syntax-expand)
+;(trace parse-exp)
+;(trace eval-exp)
+;(trace apply-env)
+;(trace eval-begin)
+;(trace extend-env-recursively)
