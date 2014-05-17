@@ -422,22 +422,13 @@
 	
 (define named-let-expand
 	(lambda (proc-name arg-names internal-bodies external-body)
-	(display proc-name)
-	(display "\n")
-	(display arg-names)
-	(display "\n")
-	(display internal-bodies)
-	(display "\n")
-	(display external-body)
-	(display "\n")
-	(display "\n")
 		(letrec-exp (list proc-name)
 		
 					(list arg-names) 
 					
-					(list (lambda-exp arg-names  external-body))
+					external-body
 					
-					(app-exp (var-exp proc-name) internal-bodies))))
+					 (list (app-exp (var-exp proc-name) internal-bodies)))))
 					
 ;(let proc-id ([arg-id1 init-expr1] [arg-id2 init-expr2] ...)
 ;  body ...+
@@ -638,7 +629,7 @@
 		'()
 	(cons value (extend-n (- length1 1) value)))))
 
-(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply quotient vector-set! eqv? list-tail))
+(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply quotient vector-set! eqv? list-tail append))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
