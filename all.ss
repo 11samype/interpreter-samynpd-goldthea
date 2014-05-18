@@ -13,7 +13,7 @@
   [empty-env-record]
   [extended-env-record
    (syms improper-or-regular)
-   (vals (list-of scheme-value?))
+   (vals (list-of box?))
    (env environment?)]
   [recursively-extended-env-record
    (procnames (list-of symbol?))
@@ -105,6 +105,9 @@
 	(body (list-of expression?))]
   [quote-exp
 	(arg scheme-value?)]
+ [set!-exp
+	(variable symbol?)
+	(new-value expression?)]
 	
   [named-let-exp
 	(proc-name symbol?)
@@ -175,8 +178,6 @@
 		   (parse-exp (caddr datum))))]
 
 		   ;;;;;;;;;;;;;;;;;;;;;;;;; lambda code
-		   
-		   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
        ((eqv? (car datum) 'lambda)
 			(if (symbol? (cadr datum))
 			(lambda-exp-parenless (cadr datum)
@@ -206,6 +207,8 @@
 			(or-exp (map parse-exp (cdr datum)))]
 ;		[(eqv? (car datum) 'case)
 ;			(case-exp (cadr datum) (map car (cddr datum)) (map parse-exp (map cadr (cddr datum))))]
+		[(eqv? (car datum) 'set!)
+			(set!-exp (cadr datum) (parse-exp (caddr datum)))]
 		[(eqv? (car datum) 'begin)
 			(begin-exp (map parse-exp (cdr datum)))]
 		[(eqv? (car datum) 'cond)
@@ -291,7 +294,7 @@
 
 (define extend-env
   (lambda (syms vals env)
-    (extended-env-record syms vals env)))
+    (extended-env-record syms (map box vals) env)))
 
 (define list-find-position
   (lambda (sym los)
@@ -307,7 +310,28 @@
 		 (+ 1 list-index-r)
 		 #f))))))
 
-(define apply-env
+;(define apply-env
+;  (lambda (env sym succeed fail) ; succeed and fail are procedures applied if the var is or isn't found, respectively.
+;    (cases environment env
+;      [empty-env-record ()
+;       (fail)]
+;      [extended-env-record (syms vals env)
+;		(let ([pos (list-find-position sym syms)])
+ ;     	  (if (number? pos)
+;	      (succeed (list-ref vals pos))
+;	      (apply-env env sym succeed fail)))]
+;	  [recursively-extended-env-record
+;		(procnames idss bodies old-env)
+;		(let ([pos
+;			(list-find-position sym procnames)])
+;		 (if (number? pos)
+;			(closure (list-ref idss pos)
+;						(list (list-ref bodies pos))
+;						env)
+;			(apply-env old-env sym succeed fail)))])))
+			
+			
+(define apply-env-ref
   (lambda (env sym succeed fail) ; succeed and fail are procedures applied if the var is or isn't found, respectively.
     (cases environment env
       [empty-env-record ()
@@ -316,7 +340,7 @@
 		(let ([pos (list-find-position sym syms)])
       	  (if (number? pos)
 	      (succeed (list-ref vals pos))
-	      (apply-env env sym succeed fail)))]
+	      (apply-env-ref env sym succeed fail)))]
 	  [recursively-extended-env-record
 		(procnames idss bodies old-env)
 		(let ([pos
@@ -325,17 +349,15 @@
 			(closure (list-ref idss pos)
 						(list (list-ref bodies pos))
 						env)
-			(apply-env old-env sym succeed fail)))])))
+			(apply-env-ref old-env sym succeed fail)))])))
 			
-; rename letrec again
-
-; in evaluate
-; apply each of the letrec bodies in order
-; extend-env-recursively
-; apply proc
-; in apply environment, handle it being a recursively-extended environment record
-; listref gets variable at position
+(define apply-env
+	(lambda (env sym succeed fail)
+		(unbox (apply-env-ref env sym succeed fail))))
+(untrace apply-env)
+(untrace apply-env-ref)
 			
+; still have to deal with recursive extend-env
 (define extend-env-recursively
 	(lambda (proc-names idss bodies old-env)
 		(recursively-extended-env-record 
@@ -417,6 +439,8 @@
                             (map syntax-expand body))]
 		[named-let-exp (proc-name arg-names internal-bodies external-body)
 		(named-let-expand proc-name arg-names internal-bodies external-body)]
+		[set!-exp (variable new-value)	
+		(set!-exp variable (syntax-expand new-value))]
 		[else (eopl:error 'syntax-expand "Bad abstract syntax: ~a" exp)]
 	)))
 	
@@ -429,14 +453,6 @@
 					external-body
 					
 					 (list (app-exp (var-exp proc-name) internal-bodies)))))
-					
-;(let proc-id ([arg-id1 init-expr1] [arg-id2 init-expr2] ...)
-;  body ...+
-; =
-;(letrec ([proc-id (lambda (arg-id1 arg-id2 ...)
-;                     body ...+)])
-;  (proc-id init-expr1 init-expr2 ...))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 			
 ;(define case-expand
 ;	(lambda (test lists bodies)
@@ -449,26 +465,6 @@
 ;				(if-exp (
 ;			(list-body->if (car lists) (car bodies))
 ;			(list-body->if (car lists) (car bodies)))))
-
-; TODO, the final piece of the puzzle
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;(let proc-id ([arg-id1 init-expr1] [arg-id2 init-expr2] ...)
-;  body ...+
-; =
-;(letrec ([proc-id (lambda (arg-id1 arg-id2 ...)
-;                     body ...+)])
-;  (proc-id init-expr1 init-expr2 ...))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-;	(lambda (proc-name arg-ids init-expr external-body)
-;		(letrec-exp (list proc-name) (list arg-ids) (list init-expr) 
-			
-;  [letrec-exp
-;	(proc-names (list-of symbol?))
-;	(proc-args (list-of (list-of symbol?)))
-;	(proc-bodies (list-of expression?))
-;	(letrec-body expression?)]
 			
 (define case-expand
   (lambda (test lists bodies env)
@@ -575,6 +571,10 @@
                              (loop (eval-exp test env))
                              (begin (eval-exp (car bodies) env)
                                     (loop2 (cdr bodies)))))))]
+	  [set!-exp (variable new-value)
+		(set-box! 
+			(apply-env-ref env variable (lambda (x) x) (lambda () (eopl:error "set! unfound input variable")))
+			(eval-exp new-value env))]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
 
 (define eval-rands
@@ -600,14 +600,6 @@
       [prim-proc (op) (apply-prim-proc op args)]
 	  
 	  [closure (params bodies env)
-;		(if (symbol? params)
-;			(let ([extended-env (extend-env (list params)  (list args) env)])
-;				(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))
-;		(if (improper-checker params)
-;			(let ([extended-env (extend-env params  (improper-list-remover args) env)])
-;				(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))
-;		(let ([extended-env (extend-env params args env)])
-;			(car (map eval-exp (reverse bodies) (extend-n (length bodies) extended-env))))))
 
 		(eval-begin bodies (extend-env params args env))
 
@@ -639,9 +631,15 @@
      (empty-env)))
 	 
 (define global-env init-env)
-
-; Usually an interpreter must define each 
-; built-in procedure individually.  We are "cheating" a little bit.
+	
+	
+(define reset-global-env
+  (lambda ()
+    (set! global-env (extend-env
+                      *prim-proc-names*
+                      (map prim-proc
+                           *prim-proc-names*)
+                      (empty-env)))))
 
 (define apply-prim-proc
   (lambda (prim-proc args)
@@ -704,3 +702,22 @@
 
 (define eval-one-exp
   (lambda (x) (top-level-eval (syntax-expand (parse-exp x)))))
+
+  
+  
+; set! stuff
+
+	; box stuff
+;http://docs.racket-lang.org/reference/boxes.html
+
+; use boxes
+;(cell value) = (box value)
+;(cell? obj) = (box? obj)
+;(cell-ref cell) = (unbox cell)
+;(cell-set! cell value) (set-box! cell value)
+
+
+;;; todo list
+; 1, do define stuff
+; 2, test global set!
+; 3, syntax exapand letrec
