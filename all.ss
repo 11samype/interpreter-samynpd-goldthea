@@ -108,6 +108,9 @@
  [set!-exp
 	(variable symbol?)
 	(new-value expression?)]
+ [define-exp
+	(new-variable symbol?)
+	(new-value expression?)]
 	
   [named-let-exp
 	(proc-name symbol?)
@@ -209,6 +212,8 @@
 ;			(case-exp (cadr datum) (map car (cddr datum)) (map parse-exp (map cadr (cddr datum))))]
 		[(eqv? (car datum) 'set!)
 			(set!-exp (cadr datum) (parse-exp (caddr datum)))]
+		[(eqv? (car datum) 'define)
+			(define-exp (cadr datum) (parse-exp (caddr datum)))]
 		[(eqv? (car datum) 'begin)
 			(begin-exp (map parse-exp (cdr datum)))]
 		[(eqv? (car datum) 'cond)
@@ -335,7 +340,7 @@
   (lambda (env sym succeed fail) ; succeed and fail are procedures applied if the var is or isn't found, respectively.
     (cases environment env
       [empty-env-record ()
-        (fail)]
+        (global-env-checker sym succeed fail)]
       [extended-env-record (syms vals env)
 		(let ([pos (list-find-position sym syms)])
       	  (if (number? pos)
@@ -351,12 +356,28 @@
 						env)
 			(apply-env-ref old-env sym succeed fail)))])))
 			
+; what could the fail case be?
+; if the element is in the global environment, return its position, otherwise false
+; global-env-checker, does the global-environment contain it. If so return the value, otherwise fail
+
 (define apply-env
 	(lambda (env sym succeed fail)
 		(unbox (apply-env-ref env sym succeed fail))))
-(untrace apply-env)
-(untrace apply-env-ref)
 			
+(define global-env-checker
+	(lambda (element succeed fail)
+		(cases environment global-env
+			(extended-env-record (syms vals env)
+				(begin
+					(let ([pos (list-find-position element syms)])
+						(if (number? pos)
+						(succeed (list-ref vals pos))
+						(fail)))))
+						(else eopl:error "should definitely not get here"))))
+
+(trace global-env-checker)						
+		
+		
 ; still have to deal with recursive extend-env
 (define extend-env-recursively
 	(lambda (proc-names idss bodies old-env)
@@ -441,6 +462,8 @@
 		(named-let-expand proc-name arg-names internal-bodies external-body)]
 		[set!-exp (variable new-value)	
 		(set!-exp variable (syntax-expand new-value))]
+		[define-exp (new-variable new-value)
+		(define-exp new-variable (syntax-expand new-value))]
 		[else (eopl:error 'syntax-expand "Bad abstract syntax: ~a" exp)]
 	)))
 	
@@ -528,6 +551,7 @@
 								(error 'apply-env
 										"variable ~s is not bound" 
 										id)))]
+							;;;;; xxx here is the error, eval-exp is failing
       [app-exp (rator rands)
         (let ([proc-value (eval-exp rator env)]
               [args (eval-rands rands env)])
@@ -575,12 +599,39 @@
 		(set-box! 
 			(apply-env-ref env variable (lambda (x) x) (lambda () (eopl:error "set! unfound input variable")))
 			(eval-exp new-value env))]
-      [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))
+	  [define-exp (new-variable new-value)
+		(apply-env-ref env new-variable (lambda (x) eopl:error "attempt to redefine a variable")
+								
+								(lambda ()
+									(cases environment global-env
+										(extended-env-record (syms vals env)
+											(begin
+											(set! global-env (extend-env (cons new-variable syms)
+											(cons (eval-exp new-value env) (map unbox vals))
+											(empty-env)))))
+        (else eopl:error "should definitely not get here"))))]		
+									
+								;(lambda ()
+								;	(extended-env-record (syms vals env)
+								;		(set! global-env (extend-env (cons var syms)
+								;			(cons val (map cell-value vals))
+								;				(empty-env))))))]
+      [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)]))))  
 
 (define eval-rands
   (lambda (rands env)
     (map (lambda (e)
 		(eval-exp e env)) rands)))
+
+		
+;(lambda ()
+;   (cases environment global-env
+;        (extended-env-record (syms vals env)
+;            (set! global-env (extend-env (cons var syms)
+;                (cons val (map cell-value vals))
+;                (empty-env))))
+;        (else eopl:error "Something went wrong")))
+		
 
 ;  Apply a procedure to its arguments.
 ;  At this point, we only have primitive procedures.  
@@ -602,7 +653,6 @@
 	  [closure (params bodies env)
 
 		(eval-begin bodies (extend-env params args env))
-
 	  ]
 
       [else (error 'apply-proc
@@ -631,7 +681,6 @@
      (empty-env)))
 	 
 (define global-env init-env)
-	
 	
 (define reset-global-env
   (lambda ()
