@@ -492,13 +492,13 @@
 	
 (define named-let-expand
 	(lambda (proc-name arg-names internal-bodies external-body)
-		(letrec-exp (list proc-name)
+		(syntax-expand (letrec-exp (list proc-name)
 		
 					(list arg-names) 
 					
 					external-body
 					
-					 (list (app-exp (var-exp proc-name) internal-bodies)))))
+					 (list (app-exp (var-exp proc-name) internal-bodies))))))
 
 ;(define case-expand
 ;	(lambda (test lists bodies)
