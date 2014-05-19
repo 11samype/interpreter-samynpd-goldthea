@@ -355,10 +355,7 @@
 						(list (list-ref bodies pos))
 						env)
 			(apply-env-ref old-env sym succeed fail)))])))
-			
-; what could the fail case be?
-; if the element is in the global environment, return its position, otherwise false
-; global-env-checker, does the global-environment contain it. If so return the value, otherwise fail
+
 
 (define apply-env
 	(lambda (env sym succeed fail)
@@ -376,7 +373,6 @@
 						(else eopl:error "should definitely not get here"))))
 
 (trace global-env-checker)						
-		
 		
 ; still have to deal with recursive extend-env
 (define extend-env-recursively
@@ -400,11 +396,11 @@
 ;						bodies
 ;						)
 ;					env)))))
-				
+
 (define iota
 	(lambda (len)
 		(reverse (iota-helper len))))
-				
+
 (define iota-helper
 	(lambda (len)
 		(cond [(zero? len) '()]
@@ -423,14 +419,16 @@
 		[var-exp (id) exp]
 		[app-exp (rator rands)
 			(app-exp (syntax-expand rator) (map syntax-expand rands))]
-		[let-exp (syms exprs bodies)
-			(let-exp syms (map syntax-expand exprs) (map syntax-expand bodies))]
+		;[let-exp (syms exprs bodies)
+		;	(let-exp syms (map syntax-expand exprs) (map syntax-expand bodies))]
 			
-		[letrec-exp (proc-names proc-args proc-bodies letrec-body)
-			(letrec-exp proc-names
-						proc-args
-						(map syntax-expand proc-bodies)
-						(map syntax-expand letrec-body))]
+		[let-exp (syms exprs bodies)
+			(app-exp (lambda-exp syms (map syntax-expand bodies)) (map syntax-expand exprs))]
+			
+		[letrec-exp (procnames proc-args proc-bodies letrec-body) 
+			(let ([syms procnames] [vals (make-lambda proc-args proc-bodies)] [body letrec-body])
+				   (syntax-expand (let-exp syms vals (list (letrec-to-set syms vals (map syntax-expand body))))))]
+			   
 		[if-exp (test-exp then-exp else-exp)
 			(if-exp (syntax-expand test-exp)
 					(syntax-expand then-exp)
@@ -467,6 +465,31 @@
 		[else (eopl:error 'syntax-expand "Bad abstract syntax: ~a" exp)]
 	)))
 	
+(define letrec-to-set
+  (lambda (names vals body)
+    (if (null? names) (let-exp '() '()  body)
+    (let ((l (letrec-to-set (cdr names) (cdr vals) body)))
+      (let-exp '(temp) (list (car vals)) (list (set!-exp (car names) (var-exp 'temp)) l))))))
+	
+(define set!-h
+	(lambda (ids vals)
+		(cond 	[(null? ids) '()]
+				[else (cons (set!-exp (car ids) (car vals)) (set!-h (cdr ids) (cdr vals)))])))
+
+;(define make-t-list
+;	(lambda (proc-args t-list count)
+;			(cond [(null? (cdr proc-args)) (make-string
+	
+(define make-set!
+	(lambda (variables new-values)
+		(cond [(null? (cdr variables)) (set!-exp (car variables) (car new-values))]
+			[else (cons (set!-exp (car variables) (car new-values)) (make-set! (cdr variables) (cdr new-values)))])))
+	
+(define make-lambda
+	(lambda (params-ls bodies-ls)
+		(cond [(null? (cdr params-ls)) (list (lambda-exp (car params-ls) (list (car bodies-ls))))]
+			[else (cons (lambda-exp (car params-ls) (list (car bodies-ls))) (make-lambda (cdr params-ls) (cdr bodies-ls)))])))
+	
 (define named-let-expand
 	(lambda (proc-name arg-names internal-bodies external-body)
 		(letrec-exp (list proc-name)
@@ -476,7 +499,7 @@
 					external-body
 					
 					 (list (app-exp (var-exp proc-name) internal-bodies)))))
-			
+
 ;(define case-expand
 ;	(lambda (test lists bodies)
 ;		(let-exp '(x) test (lists-bodies->if lists bodies))))
@@ -556,17 +579,17 @@
         (let ([proc-value (eval-exp rator env)]
               [args (eval-rands rands env)])
           (apply-proc proc-value args))]
-	  [let-exp (syms exprs bodies)
-		(let ([extended-env
-			(extend-env syms
-				(map (lambda (e) (eval-exp e env)) 
-					exprs) 
-				env)])
-		(let loop ([bodies bodies]) 
-			(if (null? (cdr bodies))
-				(eval-exp (car bodies) extended-env)
-				(begin (eval-exp (car bodies) extended-env) 
-					(loop (cdr bodies))))))]
+;	  [let-exp (syms exprs bodies)
+;		(let ([extended-env
+;			(extend-env syms
+;				(map (lambda (e) (eval-exp e env)) 
+;					exprs) 
+;				env)])
+;		(let loop ([bodies bodies]) 
+;			(if (null? (cdr bodies))
+;				(eval-exp (car bodies) extended-env)
+;				(begin (eval-exp (car bodies) extended-env) 
+;					(loop (cdr bodies))))))]
 	  [if-exp (test-exp then-exp else-exp)
 		(if (eval-exp test-exp env)
 			(eval-exp then-exp env)
@@ -752,8 +775,6 @@
 (define eval-one-exp
   (lambda (x) (top-level-eval (syntax-expand (parse-exp x)))))
 
-  
-  
 ; set! stuff
 
 	; box stuff
