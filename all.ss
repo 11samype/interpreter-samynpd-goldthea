@@ -102,10 +102,10 @@
 	(body (list-of expression?))]
   [quote-exp
 	(arg scheme-value?)]
- [set!-exp
+  [set!-exp
 	(variable symbol?)
 	(new-value expression?)]
- [define-exp
+  [define-exp
 	(new-variable symbol?)
 	(new-value expression?)]
   [named-let-exp
@@ -454,7 +454,7 @@
 	 (if (null? bodies) (lit-exp #f)
 		(if (null? (cdr bodies))
 			(if-exp (syntax-expand (car bodies)) (syntax-expand (car bodies)) (lit-exp '#f))
-			(if-exp (syntax-expand (car bodies)) (syntax-expand (car bodies)) (or-expand (cdr bodies)))))))
+			(syntax-expand (let-exp '(car-bodies) (list (syntax-expand (car bodies))) (list (if-exp '(var-exp car-bodies) '(var-exp car-bodies) (or-expand (cdr bodies))))))))))
 
 (define and-expand
 	(lambda (bodies)
@@ -470,8 +470,6 @@
 				(syntax-expand (car bodies))
 				(if-2-exp (syntax-expand (car tests)) (syntax-expand (car bodies))))
 			(if-exp (syntax-expand (car tests)) (syntax-expand (car bodies)) (cond-expand (cdr tests) (cdr bodies))))))
-			
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 ;-------------------+
