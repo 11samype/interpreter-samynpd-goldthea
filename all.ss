@@ -154,8 +154,8 @@
 			(list (parse-exp (cadddr datum))))]
 		
 		
-	    [(and (eqv? (car datum) 'let)
-			  (validate-let datum))
+	    [(or (and (eqv? (car datum) 'let)
+			  (validate-let datum)) (and (eqv? (car datum) 'let*) (validate-let datum)))
 		   (let-exp ;(car datum)
 			 (map car (cadr datum))
 			 (map parse-exp (map cadr (cadr datum)))
@@ -520,6 +520,7 @@
           [(contains? (eval-exp (parse-exp test) env) (car lists)) (car bodies)]
           [else (case-expand test (cdr lists) (cdr bodies) env)])))
 	
+;(#f #f #f)
 (define or-expand
 	(lambda (bodies)
 	 (if (null? bodies) (lit-exp #f)
@@ -623,7 +624,7 @@
 			(apply-env-ref env variable (lambda (x) x) (lambda () (eopl:error "set! unfound input variable")))
 			(eval-exp new-value env))]
 	  [define-exp (new-variable new-value)
-		(apply-env-ref env new-variable (lambda (x) eopl:error "attempt to redefine a variable")
+		(apply-env-ref env new-variable (lambda (x) eopl:error "attempt to redefine a variable using define")
 								
 								(lambda ()
 									(cases environment global-env
@@ -646,6 +647,7 @@
     (map (lambda (e)
 		(eval-exp e env)) rands)))
 
+(untrace eval-exp)
 		
 ;(lambda ()
 ;   (cases environment global-env
@@ -694,7 +696,7 @@
 		'()
 	(cons value (extend-n (- length1 1) value)))))
 
-(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply quotient vector-set! eqv? list-tail append))
+(define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply quotient vector-set! eqv? list-tail append display))
 
 (define init-env         ; for now, our initial global environment only contains 
   (extend-env            ; procedure names.  Recall that an environment associates
@@ -717,6 +719,7 @@
   (lambda (prim-proc args)
     (case prim-proc [(+) (apply + args)]  [(-) (apply - args)]
  [(*) (apply * args)]  [(/) (apply / args)]  [(add1) (+ (1st args) 1)]
+ [(display) (display  (1st args))]
  [(sub1) (- (1st args) 1)]  [(not) (not (1st args))]  [(cons) (cons (1st args) (2nd args))]
  [(car) (car (1st args))]  [(cdr) (cdr (1st args))] [(list) args]
  [(list?) (list? (1st args))]  [(list->vector) (list->vector (1st args))]
