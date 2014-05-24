@@ -2,16 +2,13 @@
 ; paste these expressions one-at-a-time into Scheme window.
 ; There will not be test cases on the server.
 
-
-
-
 (eval-one-exp '
 (+ 5 (call/cc 
-  (lambda (k) (+ 6 (k 7)))))) ; 1. answer: 12      15 points
+  (lambda (k) (+ 6 (k 7)))))) ; 1. answer: 12      12 points
 
 
 (eval-one-exp '
-(+ 3 (call/cc (lambda (k) (* 2 5)))))  ; 2. answer: 13  5 points
+(+ 3 (call/cc (lambda (k) (* 2 5)))))  ; 2. answer: 13  4 points
 
 
 (begin
@@ -23,9 +20,9 @@
 		   (set! xxx k)
 		   2))))
   (eval-one-exp '
-   (* 7 (xxx 4)))) ; answer: 9                       15 points
+   (* 7 (xxx 4)))) ; answer: 9                       13  points
 
-(eval-one-exp '(call/cc procedure?)) ; answer:  #t   10 points
+(eval-one-exp '(call/cc procedure?)) ; answer:  #t   8  points
 
 (begin 
   (reset-global-env)
@@ -38,9 +35,18 @@
        (newline))))
   
   (eval-one-exp '
-   (strange1 (call/cc (lambda (k) (k k))))))  ; answer: 112     25  points
+   (strange1 (call/cc (lambda (k) (k k))))))  ; answer: 112     20  points
 
+(eval-one-exp '(define tester
+  (call/cc (lambda (k)
+     (lambda (x)
+       (if (= x 7)
+	   (k 1000)
+	   (+ x 4)))))))
 
+(eval-one-exp '(map tester '(1 3 5 7 9 11)))
+
+(eval-one-exp 'tester)  ; answer:  1000    13 points
 
 
 ;----------------   exit
