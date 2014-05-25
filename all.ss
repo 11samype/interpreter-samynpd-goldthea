@@ -32,7 +32,11 @@
    (name symbol?)]
   [closure (params symbol-or-list?)
 			(body expression-or-list)
-			(env environment?)])
+			(env environment?)]
+			
+  [applied-continuation
+	(cont continuation?)]
+	)
  
  (define symbol-or-list?
 	(lambda (x)
@@ -113,6 +117,8 @@
 	(arg-names (list-of symbol?))
 	(internal-bodies (list-of expression?))
 	(external-body (list-of expression?))]
+  [call/cc-exp
+	(reciever expression)]
   )
 
 ;Continuation Datatype
@@ -422,6 +428,8 @@
 		(set!-exp variable (syntax-expand new-value))]
 		[define-exp (new-variable new-value)
 		(define-exp new-variable (syntax-expand new-value))]
+		[call/cc-exp (reciever)
+		(call/cc-exp (syntax-expand reciever))]
 		[else (eopl:error 'syntax-expand "Bad abstract syntax: ~a" exp)]
 	)))
 	
@@ -564,7 +572,10 @@
 											(set! global-env (extend-env (cons new-variable syms)
 											(cons (eval-exp new-value env k) (map unbox vals))
 											(empty-env)))))
-        (else eopl:error "should definitely not get here"))))]		
+        (else eopl:error "should definitely not get here"))))]	
+
+	  [call/cc-exp (reciever)
+				(eval-exp reciever (call/cc-continuation k) env)]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))  
 
 (define apply-k
@@ -587,7 +598,8 @@
 			[else (k val)]
 						
 						)))
-	  
+		
+				
 (define eval-rands
   (lambda (rands env k)
     (map (lambda (e)
@@ -615,6 +627,8 @@
 
 		(eval-begin bodies (extend-env params args env))
 	  ]
+	  
+	  [applied-continuation (k) (apply-continuation k (car args))]
 
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
@@ -723,3 +737,14 @@
 
 (define eval-one-exp
   (lambda (x) (top-level-eval (syntax-expand (parse-exp x)))))
+  
+  
+  ; call/cc stuff
+;QQ	;2, once the apply-continuation function is written, add the following case
+;	[call/cc-continuation (k)
+;		(cases procedure value
+;			[closure (params bodies env)
+;					(eval-exp (begin-exp bodies)
+;							k
+;							(extend-env (list (applied-continuation k)) env))]
+		
