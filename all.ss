@@ -549,26 +549,22 @@
 ;                             (begin (eval-exp (car bodies) env)
 ;                                    (loop2 (cdr bodies)))))))]
 	  [set!-exp (variable new-value)
+	  
+		;(apply-k (set!-k (variable) (new-value))
+	  
 		(set-box! 
 			(apply-env-ref env variable (lambda (x) x) (lambda () (eopl:error "set! unfound input variable")))
-			(eval-exp new-value env))]
+			(eval-exp new-value env k))]
 	  [define-exp (new-variable new-value)
 		(apply-env-ref env new-variable (lambda (x) eopl:error "attempt to redefine a variable using define")
-								
 								(lambda ()
 									(cases environment global-env
 										(extended-env-record (syms vals env)
 											(begin
 											(set! global-env (extend-env (cons new-variable syms)
-											(cons (eval-exp new-value env) (map unbox vals))
+											(cons (eval-exp new-value env k) (map unbox vals))
 											(empty-env)))))
         (else eopl:error "should definitely not get here"))))]		
-									
-								;(lambda ()
-								;	(extended-env-record (syms vals env)
-								;		(set! global-env (extend-env (cons var syms)
-								;			(cons val (map cell-value vals))
-								;				(empty-env))))))]
       [else (eopl:error 'eval-exp "Bad abstract syntax: ~a" exp)])))  
 
 (define apply-k
@@ -590,13 +586,12 @@
 						(eval-exp then-exp env k))]
 			[else (k val)]
 						
-						
 						)))
 	  
 (define eval-rands
-  (lambda (rands env)
+  (lambda (rands env k)
     (map (lambda (e)
-		(eval-exp e env)) rands)))
+		(eval-exp e env k)) rands)))
 		
 
 ;  Apply a procedure to its arguments.
@@ -624,18 +619,6 @@
       [else (error 'apply-proc
                    "Attempt to apply bad procedure: ~s" 
            		   proc-value)])))
-				   
-(define improper-list-remover
-	(lambda (list1)
-		(if (symbol? list1)
-			(cons list1 '())
-		(cons (car list1) (improper-list-remover (cdr list1))))))
-			
-(define extend-n
-	(lambda (length1 value)
-		(if (zero? length1)
-		'()
-	(cons value (extend-n (- length1 1) value)))))
 
 (define *prim-proc-names* '(+ - * / add1 sub1 set-car! set-cdr! not car cdr caar cadr cadar symbol? list list? list->vector vector->list vector? vector vector-ref number? length pair? cons >= = > < <= zero? null? eq? equal? procedure? map apply quotient vector-set! eqv? list-tail append assq display newline))
 
@@ -658,27 +641,47 @@
 
 (define apply-prim-proc
   (lambda (prim-proc args)
-    (case prim-proc [(+) (apply + args)]  [(-) (apply - args)]
- [(*) (apply * args)]  [(/) (apply / args)]  [(add1) (+ (1st args) 1)]
- [(display) (display  (1st args))]
- [(newline) (newline)]
- [(sub1) (- (1st args) 1)]  [(not) (not (1st args))]  [(cons) (cons (1st args) (2nd args))]
- [(car) (car (1st args))]  [(cdr) (cdr (1st args))] [(list) args]
- [(list?) (list? (1st args))]  [(list->vector) (list->vector (1st args))]
- [(vector->list) (vector->list (1st args))]  [(vector?) (vector? (1st args))]
- [(vector) (list->vector args)]  [(vector-ref) (vector-ref (1st args) (2nd args))]
- [(number?) (number? (1st args))]  [(symbol?) (symbol? (1st args))]
- [(caar) (caar (1st args))]  [(cadr) (cadr (1st args))]  [(cadar) (cadar (1st args))]
- [(length) (length (1st args))]  [(pair?) (pair? (1st args))]  [(<) (apply < args)]
- [(>) (apply > args)]  [(<=) (or (apply < args) (apply = args))]
- [(>=) (or (apply > args) (apply = args))]  [(=) (= (1st args) (2nd args))]
- [(zero?) (= (1st args) 0)] [(null?) (null? (1st args))]
- [(eq?) (eq? (1st args) (2nd args))]  [(equal?) (equal? (1st args) (2nd args))]
- [(quotient) (quotient (1st args) (1st args))]
- [(set-car!) (set-car! (1st args) (2nd args))]
- [(set-cdr!) (set-cdr! (1st args) (2nd args))]
- [(vector-set!) (vector-set! (1st args) (2nd args) (3rd args))]
- [(procedure?) (proc-val? (1st args))]
+    (case prim-proc 
+	  [(+) (apply + args)]  
+	  [(-) (apply - args)]
+	  [(*) (apply * args)]  
+	  [(/) (apply / args)]  
+	  [(add1) (+ (1st args) 1)]
+	  [(display) (display  (1st args))]
+	  [(newline) (newline)]
+	  [(sub1) (- (1st args) 1)]  
+	  [(not) (not (1st args))]  
+	  [(cons) (cons (1st args) (2nd args))]
+	  [(car) (car (1st args))]  
+	  [(cdr) (cdr (1st args))] 
+	  [(list) args]
+	  [(list?) (list? (1st args))]  
+	  [(list->vector) (list->vector (1st args))]
+	  [(vector->list) (vector->list (1st args))]  
+	  [(vector?) (vector? (1st args))]
+	  [(vector) (list->vector args)]  
+	  [(vector-ref) (vector-ref (1st args) (2nd args))]
+	  [(number?) (number? (1st args))]  
+	  [(symbol?) (symbol? (1st args))]
+	  [(caar) (caar (1st args))]  
+	  [(cadr) (cadr (1st args))]  
+	  [(cadar) (cadar (1st args))]
+	  [(length) (length (1st args))]  
+	  [(pair?) (pair? (1st args))]  
+	  [(<) (apply < args)]
+	  [(>) (apply > args)]  
+	  [(<=) (or (apply < args) (apply = args))]
+	  [(>=) (or (apply > args) (apply = args))]  
+	  [(=) (= (1st args) (2nd args))]
+	  [(zero?) (= (1st args) 0)] 
+	  [(null?) (null? (1st args))]
+	  [(eq?) (eq? (1st args) (2nd args))]  
+	  [(equal?) (equal? (1st args) (2nd args))]
+	  [(quotient) (quotient (1st args) (1st args))]
+	  [(set-car!) (set-car! (1st args) (2nd args))]
+	  [(set-cdr!) (set-cdr! (1st args) (2nd args))]
+	  [(vector-set!) (vector-set! (1st args) (2nd args) (3rd args))]
+	  [(procedure?) (proc-val? (1st args))]
 	  [(map) (cases proc-val (1st args)
 				[prim-proc (op)
 					(if (null? (cadr args))
